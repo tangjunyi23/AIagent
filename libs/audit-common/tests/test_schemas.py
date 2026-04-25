@@ -195,12 +195,12 @@ class SchemaTests(unittest.TestCase):
             "network-enable",
             "exploit-verification",
             "firmware-emulation",
+            "artifact-export",
         ]
 
         self.assertTrue(
             all(is_dangerous_approval_action(action) for action in dangerous_actions)
         )
-        self.assertFalse(is_dangerous_approval_action("artifact-export"))
 
 
 if __name__ == "__main__":

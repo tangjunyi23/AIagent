@@ -34,7 +34,7 @@
 | Audit supervisor graph | `apps/audit-agents/audit_agents/supervisor.py` | implemented skeleton | `SupervisorGraphSpec`, `build_supervisor_graph`, `triage_sample`, idempotent `request_dangerous_action_approval` |
 | Audit agent tests | `apps/audit-agents/tests/` | implemented skeleton | state initialization, supervisor node updates, graph build smoke test |
 | Audit API casing | `apps/audit-api/audit_api/casing.py` | implemented mock | `to_camel`, `to_snake` |
-| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `get_artifact_content`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` |
+| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `get_artifact_content`, `request_artifact_export`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` |
 | Audit API server helpers | `apps/audit-api/audit_api/server.py` | implemented mock resources | `format_sse_event`, `AuditApiHandler`, `AuditApiHandler.with_service`, `do_GET`, `do_PATCH`, `do_POST` |
 | Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, paginated finding query/update, redacted artifact/report content, audit-log query, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
 
@@ -62,6 +62,7 @@
 | `POST /api/tool-executions/{toolExecutionId}:cancel` | draft | Cancel authorized tool execution |
 | `GET /api/artifacts/{artifactId}` | mock implemented | Fetch mock artifact metadata |
 | `GET /api/artifacts/{artifactId}/content` | mock implemented limited | Return redacted preview for safe mock evidence artifacts and record `artifact.content.read`; sensitive exports remain future approval work |
+| `POST /api/artifacts/{artifactId}:request-export` | mock implemented approval scaffold | Create or reuse pending `artifact-export` `ApprovalRequest`; does not return artifact bytes |
 | `GET /api/findings` | mock implemented | Query mock findings by `analysisId` or `projectId` with optional `status`/`severity` filters and `limit`/`offset` pagination |
 | `PATCH /api/findings/{findingId}` | mock implemented | Analyst status/severity updates and `finding.updated` event |
 | `POST /api/reports` | mock implemented | Generate versioned mock report artifact metadata |
@@ -95,7 +96,7 @@
 | `artifact.created` | mock implemented | Artifact service / worker normalizer |
 | `finding.created` | draft | Agent verifier / finding service |
 | `finding.updated` | mock implemented | Finding service / analyst action |
-| `approval.requested` | mock implemented | Policy engine / interrupt bridge |
+| `approval.requested` | mock implemented | Policy engine / interrupt bridge / artifact export scaffold |
 | `approval.approved` | mock implemented | Approval service |
 | `approval.rejected` | mock implemented | Approval service |
 | `policy.denied` | draft | Policy engine |
@@ -141,3 +142,4 @@
 | 2026-04-25 | `find apps libs docs -maxdepth 5 \( -iname '*finding*' -o -iname '*pagination*' -o -iname '*filter*' \) -print | sort` | Only prior artifact/finding plan docs and unrelated upstream tests were found; P14 extended the existing mock service and handler only. |
 | 2026-04-25 | `rg -n "artifact.*content|artifacts/.*/content|get_artifact_content|ArtifactContent|artifact.content.read|artifact-export|approval_required|redacted|content read|sensitive artifact|report.content.read|get_report_content" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing content ownership was report-only `get_report_content` plus `AuditLog`; generic artifact content remained draft with no service method or route dispatch. |
 | 2026-04-25 | `find apps libs docs -maxdepth 5 \( -iname '*artifact*content*' -o -iname '*content*' -o -iname '*artifact*' -o -iname '*audit*log*' \) -print | sort` | No product artifact content module existed; P15 extended existing `AuditMockService` and `AuditApiHandler` only. |
+| 2026-04-25 | `rg -n "artifact-export|ApprovalRequest|approval\.requested|is_dangerous_approval_action|artifact content requires|request.*export|export.*artifact" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | `artifact-export` enum and approval event schema existed, but it was not classified as dangerous and no artifact export request method or route existed. P16 extended existing approval storage and handler only. |

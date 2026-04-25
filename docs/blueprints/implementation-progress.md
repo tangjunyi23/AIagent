@@ -1904,3 +1904,130 @@ Observed result:
 1. Add a persistence-facing repository interface for `AuditMockService` so future storage work can keep the public API contract stable.
 2. Add approval request scaffolding for sensitive artifact export attempts before enabling non-preview artifact downloads.
 3. Replace in-memory audit logs, reports, artifacts, and finding queries with persistence/object storage once RBAC and tenant checks are implemented.
+
+## 2026-04-25: P16 Artifact Export Approval Scaffold
+
+### Scope
+
+- Classified `artifact-export` as a dangerous approval action in `libs/audit-common`.
+- Added `AuditMockService.request_artifact_export` to create or reuse a pending `artifact-export` `ApprovalRequest`.
+- Added `POST /api/artifacts/{artifactId}:request-export` mock HTTP dispatch returning HTTP 202 with the pending approval.
+- Emitted `approval.requested` for export requests and synchronized the in-memory `AuditAgentState`.
+- Did not return artifact bytes, create signed URLs, call object storage, resume LangGraph, call Agent Server, expose MCP, or launch export workers.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `libs/audit-common/audit_common/schemas.py`
+- `libs/audit-common/tests/test_schemas.py`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_mock_service.py`
+- `apps/audit-api/tests/test_server.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/oss/python/langgraph/overview`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+- `https://docs.langchain.com/langsmith/agent-server`
+- `https://docs.langchain.com/langsmith/server-mcp`
+
+Adopted conclusions:
+
+- Sensitive artifact export should use human-gated approval semantics; real LangGraph interrupt resume remains later integration work.
+- Product `/api/*` remains the authorization/audit boundary; do not expose MCP or Agent Server routes for artifact export.
+- `approval.requested` is the correct existing event for frontend HumanGateCard refresh; no new SSE event type is needed.
+- Export requests must be structured `ApprovalRequest` records, not natural-language-only logs.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "artifact-export|ApprovalRequest|approval\.requested|is_dangerous_approval_action|artifact content requires|request.*export|export.*artifact" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S
+```
+
+Result:
+
+- `artifact-export` already existed in the shared approval enum and contract documents.
+- Existing API approval storage, `approval.requested` events, and approval decision routes were present.
+- `artifact-export` was not classified as dangerous, and no `request_artifact_export` service method or `POST /api/artifacts/{artifactId}:request-export` route existed.
+- P16 extended existing shared schema, mock service, and handler only.
+
+### TDD Evidence
+
+Red targeted tests:
+
+```bash
+cd libs/audit-common && python3 -m unittest tests.test_schemas.SchemaTests.test_dangerous_approval_actions_are_identified -v
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_request_artifact_export_creates_pending_approval_event tests.test_server.AuditApiHandlerRouteTests.test_post_artifact_request_export_creates_approval -v
+```
+
+Observed result before implementation:
+
+- Shared schema test failed because `is_dangerous_approval_action("artifact-export")` returned false.
+- API service test errored with `AttributeError: 'AuditMockService' object has no attribute 'request_artifact_export'`.
+- HTTP route test failed with `HTTP Error 404: Not Found`.
+
+Green targeted tests:
+
+```bash
+cd libs/audit-common && python3 -m unittest tests.test_schemas.SchemaTests.test_dangerous_approval_actions_are_identified -v
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_request_artifact_export_creates_pending_approval_event tests.test_server.AuditApiHandlerRouteTests.test_post_artifact_request_export_creates_approval -v
+```
+
+Observed result after implementation:
+
+- 1 shared schema targeted test ran and passed.
+- 2 targeted API tests ran and passed.
+
+### Files Changed
+
+- Updated `libs/audit-common/audit_common/schemas.py`
+- Updated `libs/audit-common/tests/test_schemas.py`
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `apps/audit-api/audit_api/server.py`
+- Updated `apps/audit-api/tests/test_mock_service.py`
+- Updated `apps/audit-api/tests/test_server.py`
+- Updated `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- Updated `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Validation
+
+Final validation commands:
+
+```bash
+cd libs/audit-common && make format && make lint && make test
+cd apps/audit-api && make format && make lint && make test
+rg -n "P16|request_artifact_export|artifact-export|request-export|Artifact Export Requires Approval" docs/blueprints apps/audit-api libs/audit-common -S
+rg -n '``[^`\n]+``' apps/audit-api libs/audit-common docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md docs/blueprints/binary-audit-platform-frontend-blueprint.md docs/blueprints/binary-audit-platform-backend-blueprint.md -S
+```
+
+Observed result:
+
+- `libs/audit-common` format and lint ran `python3 -m compileall -q audit_common tests`.
+- `libs/audit-common` test ran `python3 -m unittest discover tests -v`; 8 schema tests ran and passed.
+- `apps/audit-api` format and lint ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `apps/audit-api` test ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest discover tests -v`; 52 API tests ran and passed.
+- P16 keyword search returned the updated shared schema, API code, tests, OpenAPI contract, event note, decision log, feature registry, frontend/backend blueprints, and progress log.
+- Inline Sphinx-style double-backtick search in touched code and blueprint paths returned no matches.
+
+### Next Recommended Tasks
+
+1. Add a persistence-facing repository interface for `AuditMockService` so future storage work can keep the public API contract stable.
+2. Replace in-memory audit logs, reports, artifacts, approvals, and finding queries with persistence/object storage once RBAC and tenant checks are implemented.
+3. Add approval decision audit log entries for `approval.approved` and `approval.rejected` before real interrupt resume integration.

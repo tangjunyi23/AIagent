@@ -221,3 +221,16 @@
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/persistence
   - https://docs.langchain.com/oss/python/langgraph/interrupts
+
+## 2026-04-25: Artifact Export Requires Approval Scaffolding
+
+- Decision: P16 marks `artifact-export` as a dangerous approval action and adds `POST /api/artifacts/{artifactId}:request-export` to create or reuse a pending `ApprovalRequest`.
+- Reason: artifact export can disclose samples, credentials, exploit evidence, or sensitive tool outputs. Export intent must be structured before any future object storage download or worker export path exists.
+- Boundary: the new endpoint emits `approval.requested` and updates state only; it does not return artifact bytes, create signed URLs, call Agent Server, call MCP, resume LangGraph, or launch an export worker.
+- Official docs: LangGraph interrupts are the later resume mechanism for approved human gates; product APIs still own authorization, audit, and artifact export policy.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/oss/python/langgraph/interrupts
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/persistence

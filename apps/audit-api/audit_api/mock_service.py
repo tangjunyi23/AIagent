@@ -187,6 +187,36 @@ class AuditMockService:
         }
         return cast(PublicResource, to_camel(payload))
 
+    def request_artifact_export(
+        self,
+        artifact_id: str,
+        payload: PublicResource,
+    ) -> PublicResource:
+        if artifact_id not in self._artifacts:
+            raise KeyError(f"unknown artifact: {artifact_id}")
+        artifact = self._artifacts[artifact_id]
+        analysis = self._analyses[artifact["analysis_id"]]
+        existing = self._find_pending_artifact_export_approval(analysis["id"], artifact_id)
+        if existing is not None:
+            return cast(PublicResource, to_camel(existing))
+
+        body = cast(dict[str, Any], to_snake(payload))
+        approval = self._create_artifact_export_approval(
+            artifact,
+            reason=str(
+                body.get(
+                    "reason",
+                    "Artifact export requires approval before content leaves the platform.",
+                )
+            ),
+        )
+        self._approvals[analysis["id"]].append(approval)
+        self._events[analysis["id"]].append(
+            self._create_approval_event(analysis, approval, "approval.requested")
+        )
+        self._sync_agent_state(analysis["id"])
+        return cast(PublicResource, to_camel(approval))
+
     def create_report(self, payload: PublicResource) -> PublicResource:
         body = cast(dict[str, Any], to_snake(payload))
         analysis_id = str(body["analysis_id"])
@@ -611,6 +641,37 @@ class AuditMockService:
             "decision_reason": None,
         }
 
+    def _create_artifact_export_approval(
+        self,
+        artifact: ArtifactRef,
+        reason: str,
+    ) -> ApprovalRequest:
+        return {
+            "id": f"approval_{artifact['id']}_artifact_export",
+            "analysis_id": artifact["analysis_id"],
+            "project_id": artifact["project_id"],
+            "interrupt_id": f"interrupt_{artifact['id']}_artifact_export",
+            "action": "artifact-export",
+            "status": "pending",
+            "requested_by_agent": "artifact_service",
+            "reason": reason,
+            "risk_summary": (
+                "Artifact export may disclose samples, credentials, exploit evidence, "
+                "or other sensitive analysis outputs."
+            ),
+            "proposed_parameters": {
+                "artifact_id": artifact["id"],
+                "artifact_type": artifact["type"],
+                "media_type": artifact["media_type"],
+                "filename": artifact["name"],
+                "preview_only": False,
+            },
+            "created_at": self._timestamp(),
+            "decided_at": None,
+            "decided_by": None,
+            "decision_reason": None,
+        }
+
     def _create_approval_event(
         self,
         analysis: Analysis,
@@ -825,6 +886,20 @@ class AuditMockService:
             if approval["interrupt_id"] == interrupt_id:
                 return approval
         raise KeyError(f"unknown interrupt: {interrupt_id}")
+
+    def _find_pending_artifact_export_approval(
+        self,
+        analysis_id: str,
+        artifact_id: str,
+    ) -> ApprovalRequest | None:
+        for approval in self._approvals[analysis_id]:
+            if (
+                approval["action"] == "artifact-export"
+                and approval["status"] == "pending"
+                and approval["proposed_parameters"].get("artifact_id") == artifact_id
+            ):
+                return approval
+        return None
 
     def _has_approved_dangerous_action(self, analysis_id: str) -> bool:
         return any(

@@ -197,6 +197,13 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             if path == "/api/reports":
                 self._send_json(201, self.service.create_report(payload))
                 return
+            artifact_export_id = self._parse_artifact_export_path(path)
+            if artifact_export_id is not None:
+                self._send_json(
+                    202,
+                    self.service.request_artifact_export(artifact_export_id, payload),
+                )
+                return
             if path.startswith("/api/analyses/") and path.endswith("/runs:resume"):
                 analysis_id = path.removeprefix("/api/analyses/").removesuffix(
                     "/runs:resume"
@@ -237,3 +244,11 @@ class AuditApiHandler(BaseHTTPRequestHandler):
         if interrupt_action.endswith(":reject"):
             return analysis_id, interrupt_action.removesuffix(":reject"), "rejected"
         return None
+
+    @staticmethod
+    def _parse_artifact_export_path(path: str) -> str | None:
+        prefix = "/api/artifacts/"
+        suffix = ":request-export"
+        if not path.startswith(prefix) or not path.endswith(suffix):
+            return None
+        return path.removeprefix(prefix).removesuffix(suffix)

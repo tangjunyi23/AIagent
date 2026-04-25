@@ -294,6 +294,33 @@ class MockServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             service.get_artifact_content("report_analysis_1_markdown")
 
+    def test_request_artifact_export_creates_pending_approval_event(self) -> None:
+        service, analysis = self.create_firmware_analysis()
+
+        approval = service.request_artifact_export(
+            "artifact_analysis_1_evidence",
+            {"reason": "Need offline evidence package for peer review."},
+        )
+        repeated = service.request_artifact_export(
+            "artifact_analysis_1_evidence",
+            {"reason": "Duplicate click should reuse pending approval."},
+        )
+
+        self.assertEqual(approval, repeated)
+        self.assertEqual(approval["action"], "artifact-export")
+        self.assertEqual(approval["status"], "pending")
+        self.assertEqual(approval["analysisId"], analysis["id"])
+        self.assertEqual(
+            approval["interruptId"],
+            "interrupt_artifact_analysis_1_evidence_artifact_export",
+        )
+        self.assertEqual(
+            approval["proposedParameters"]["artifactId"],
+            "artifact_analysis_1_evidence",
+        )
+        self.assertEqual(service.list_events(str(analysis["id"]))[-1]["type"], "approval.requested")
+        self.assertEqual(len(service.list_approvals(str(analysis["id"]))), 2)
+
     def test_list_events_returns_mock_sse_ready_events(self) -> None:
         service = AuditMockService()
         project = service.create_project(

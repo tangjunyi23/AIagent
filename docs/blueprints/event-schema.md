@@ -220,6 +220,8 @@ ApprovalPayload:
 
 Used by `approval.requested`, `approval.approved`, and `approval.rejected`.
 
+P16 mock status: artifact export requests emit `approval.requested` with action `artifact-export` and `proposedParameters.artifactId`. Approval decisions are recorded by existing approval endpoints, but no artifact bytes are returned and no export worker is launched.
+
 ### 4.10 Policy Denied
 
 ```yaml

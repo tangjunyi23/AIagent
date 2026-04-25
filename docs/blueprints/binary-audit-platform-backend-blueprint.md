@@ -400,6 +400,7 @@ intake -> apktool/jadx -> manifest risk -> code pattern -> native libs reverse -
 - `POST /api/tool-executions/{id}:cancel`：取消工具任务。
 - `GET /api/artifacts/{id}`：获取 artifact metadata。
 - `GET /api/artifacts/{id}/content`：下载/预览 artifact。
+- `POST /api/artifacts/{id}:request-export`：为敏感 artifact 导出创建审批请求。
 - `GET /api/findings`：查询 findings。
 - `PATCH /api/findings/{id}`：人工确认。
 - `POST /api/reports`：生成报告。

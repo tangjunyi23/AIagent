@@ -172,6 +172,7 @@ DANGEROUS_APPROVAL_ACTIONS: frozenset[ApprovalAction] = frozenset(
         "network-enable",
         "exploit-verification",
         "firmware-emulation",
+        "artifact-export",
     )
 )
 

@@ -196,6 +196,28 @@ class AuditApiHandlerRouteTests(unittest.TestCase):
         self.assertEqual(audit_logs[0]["action"], "artifact.content.read")
         self.assertEqual(audit_logs[0]["resourceId"], "artifact_analysis_1_evidence")
 
+    def test_post_artifact_request_export_creates_approval(self) -> None:
+        self.create_firmware_analysis()
+
+        status, payload = self.post_json(
+            "/api/artifacts/artifact_analysis_1_evidence:request-export",
+            {"reason": "Need offline evidence package for peer review."},
+        )
+
+        self.assertEqual(status, 202)
+        self.assertEqual(payload["action"], "artifact-export")
+        self.assertEqual(payload["status"], "pending")
+        self.assertEqual(
+            payload["interruptId"],
+            "interrupt_artifact_analysis_1_evidence_artifact_export",
+        )
+
+        _, approvals = self.get_json("/api/analyses/analysis_1/interrupts")
+        approval_actions = [approval["action"] for approval in list(approvals)]
+        self.assertIn("artifact-export", approval_actions)
+        _, _, events = self.get_text("/api/analyses/analysis_1/events")
+        self.assertIn("event: approval.requested\n", events)
+
     def test_get_findings_filters_by_analysis(self) -> None:
         self.create_firmware_analysis()
 

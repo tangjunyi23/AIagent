@@ -364,11 +364,14 @@ Tool execution creation is internal to agents/workers. User-facing clients can v
 ```http
 GET /api/artifacts/{artifactId}
 GET /api/artifacts/{artifactId}/content
+POST /api/artifacts/{artifactId}:request-export
 ```
 
 P10 mock status: `GET /api/artifacts/{artifactId}` is implemented for in-memory metadata only.
 
 P15 mock status: `GET /api/artifacts/{artifactId}/content` returns a redacted preview envelope for safe mock evidence artifacts only and records an `AuditLog` entry with action `artifact.content.read`. Report artifacts continue to use `GET /api/reports/{reportId}/content`. Original samples, PCAPs, decompiler projects, rootfs exports, credential-like artifacts, object storage downloads, Agent Server routes, and MCP exposure remain out of scope.
+
+P16 mock status: `POST /api/artifacts/{artifactId}:request-export` creates or reuses a pending `ApprovalRequest` with action `artifact-export` and emits `approval.requested`. It does not return artifact bytes, produce signed URLs, call object storage, resume LangGraph, or expose MCP/Agent Server routes.
 
 Artifact access must validate tenant, project, analysis, and user permission. Downloading original samples, PCAPs, decompiler projects, reports, or credential-like artifacts must create an audit log entry.
 
@@ -385,6 +388,41 @@ Artifact access must validate tenant, project, analysis, and user permission. Do
   "redacted": true,
   "auditLogId": "audit_1",
   "content": "{\"artifactId\":\"artifact_analysis_123_evidence\",\"artifactType\":\"vuln.finding_evidence\",\"redacted\":true,\"summary\":\"...\",\"title\":\"Mock artifact preview\"}"
+}
+```
+
+`POST /api/artifacts/{artifactId}:request-export` request:
+
+```json
+{
+  "reason": "Need offline evidence package for peer review."
+}
+```
+
+Response is an `ApprovalRequest`:
+
+```json
+{
+  "id": "approval_artifact_analysis_123_evidence_artifact_export",
+  "analysisId": "analysis_123",
+  "projectId": "project_123",
+  "interruptId": "interrupt_artifact_analysis_123_evidence_artifact_export",
+  "action": "artifact-export",
+  "status": "pending",
+  "requestedByAgent": "artifact_service",
+  "reason": "Need offline evidence package for peer review.",
+  "riskSummary": "Artifact export may disclose samples, credentials, exploit evidence, or other sensitive analysis outputs.",
+  "proposedParameters": {
+    "artifactId": "artifact_analysis_123_evidence",
+    "artifactType": "vuln.finding_evidence",
+    "mediaType": "application/json",
+    "filename": "mock-static-evidence.json",
+    "previewOnly": false
+  },
+  "createdAt": "2026-04-24T00:00:00Z",
+  "decidedAt": null,
+  "decidedBy": null,
+  "decisionReason": null
 }
 ```
 
@@ -490,7 +528,7 @@ The first `apps/audit-api` implementation is an in-memory mock for parallel fron
 
 - Public service methods accept and return camelCase dictionaries matching this contract.
 - Internal resources are stored with Python snake_case keys matching `libs/audit-common`.
-- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/artifacts/{artifactId}/content`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage.
+- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/artifacts/{artifactId}/content`, `POST /api/artifacts/{artifactId}:request-export`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage.
 - Mock `POST /api/samples:upload` accepts JSON sample metadata for frontend and agent parallel development; production multipart upload parsing remains deferred.
 - SSE formatting is represented by `format_sse_event`; authentication, RBAC, persistent storage, native Agent Server run creation, and MCP exposure are intentionally deferred.
 
