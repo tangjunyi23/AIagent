@@ -184,10 +184,58 @@ class AuditApiHandlerRouteTests(unittest.TestCase):
         status, payload = self.get_json("/api/findings?analysisId=analysis_1")
 
         self.assertEqual(status, 200)
-        findings = list(payload)
+        result = dict(payload)
+        findings = list(result["items"])
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["id"], "finding_analysis_1_static_strings")
         self.assertEqual(findings[0]["evidenceArtifactIds"], ["artifact_analysis_1_evidence"])
+        self.assertEqual(
+            result["pagination"],
+            {"total": 1, "limit": 50, "offset": 0, "nextOffset": None},
+        )
+
+    def test_get_findings_supports_project_filters_and_pagination(self) -> None:
+        self.create_firmware_analysis()
+        self.post_json("/api/projects", {"name": "Mobile Lab"})
+        self.post_json(
+            "/api/samples:upload",
+            {
+                "projectId": "project_2",
+                "filename": "app.apk",
+                "size": 256,
+                "sha256": "b" * 64,
+                "format": "APK",
+            },
+        )
+        self.post_json(
+            "/api/analyses",
+            {
+                "projectId": "project_2",
+                "sampleIds": ["sample_2"],
+                "scenario": "mobile",
+            },
+        )
+        self.patch_json(
+            "/api/findings/finding_analysis_2_static_strings",
+            {"status": "needs-review", "severity": "high"},
+        )
+
+        status, payload = self.get_json(
+            "/api/findings?projectId=project_2&status=needs-review&severity=high&limit=1&offset=0"
+        )
+
+        self.assertEqual(status, 200)
+        result = dict(payload)
+        findings = list(result["items"])
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["analysisId"], "analysis_2")
+        self.assertEqual(findings[0]["projectId"], "project_2")
+        self.assertEqual(findings[0]["status"], "needs-review")
+        self.assertEqual(findings[0]["severity"], "high")
+        self.assertEqual(
+            result["pagination"],
+            {"total": 1, "limit": 1, "offset": 0, "nextOffset": None},
+        )
 
     def test_patch_finding_dispatches_to_service(self) -> None:
         self.create_firmware_analysis()

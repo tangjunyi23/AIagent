@@ -373,11 +373,38 @@ Artifact access must validate tenant, project, analysis, and user permission. Do
 ### 3.7 Findings
 
 ```http
-GET /api/findings?analysisId={analysisId}
+GET /api/findings?analysisId={analysisId}&projectId={projectId}&status={status}&severity={severity}&limit=50&offset=0
 PATCH /api/findings/{findingId}
 ```
 
 P10 mock status: `GET /api/findings?analysisId={analysisId}` and `PATCH /api/findings/{findingId}` are implemented against in-memory findings. Patching currently supports `status`, `severity`, and `description`, emits `finding.updated`, and synchronizes the mock state snapshot.
+
+P14 mock status: `GET /api/findings` returns a paginated envelope and supports `analysisId`, `projectId`, `status`, `severity`, `limit`, and `offset`. At least one of `analysisId` or `projectId` is required for the mock query path.
+
+`GET /api/findings` response:
+
+```json
+{
+  "items": [
+    {
+      "id": "finding_analysis_123_static_strings",
+      "analysisId": "analysis_123",
+      "projectId": "project_123",
+      "title": "Mock suspicious firmware string",
+      "severity": "high",
+      "confidence": 0.55,
+      "status": "needs-review",
+      "evidenceArtifactIds": ["artifact_analysis_123_evidence"]
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "limit": 50,
+    "offset": 0,
+    "nextOffset": null
+  }
+}
+```
 
 `PATCH /api/findings/{findingId}` request:
 

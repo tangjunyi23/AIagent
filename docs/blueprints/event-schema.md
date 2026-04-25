@@ -201,6 +201,8 @@ Used by `finding.created` and `finding.updated`.
 
 P10 mock status: `PATCH /api/findings/{findingId}` emits `finding.updated` with the finding ID, title, severity, confidence, status, and evidence artifact IDs. Worker-produced `finding.created` remains draft until real normalizers/verifiers exist.
 
+P14 mock status: project-level finding filters and pagination are handled by `GET /api/findings`; no new SSE event type is introduced. `FindingBoard` should continue refreshing from `finding.created` and `finding.updated` events, then re-query the paginated list endpoint.
+
 ### 4.9 Approval Events
 
 ```yaml

@@ -100,12 +100,60 @@ class MockServiceTests(unittest.TestCase):
     def test_list_findings_returns_analysis_findings(self) -> None:
         service, _ = self.create_firmware_analysis()
 
-        findings = service.list_findings("analysis_1")
+        result = service.list_findings({"analysisId": "analysis_1"})
+        findings = result["items"]
 
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["id"], "finding_analysis_1_static_strings")
         self.assertEqual(findings[0]["analysisId"], "analysis_1")
         self.assertEqual(findings[0]["evidenceArtifactIds"], ["artifact_analysis_1_evidence"])
+        self.assertEqual(
+            result["pagination"],
+            {"total": 1, "limit": 50, "offset": 0, "nextOffset": None},
+        )
+
+    def test_list_findings_filters_by_project_status_severity_and_paginates(self) -> None:
+        service, first_analysis = self.create_firmware_analysis()
+        project = service.create_project({"name": "Mobile Lab"})
+        sample = service.upload_sample(
+            {
+                "projectId": project["id"],
+                "filename": "app.apk",
+                "sha256": "1" * 64,
+                "size": 512,
+                "format": "APK",
+            }
+        )
+        second_analysis = service.create_analysis(
+            {
+                "projectId": project["id"],
+                "sampleIds": [sample["id"]],
+                "scenario": "mobile",
+            }
+        )
+        service.patch_finding(
+            "finding_analysis_2_static_strings",
+            {"status": "needs-review", "severity": "high"},
+        )
+
+        first_page = service.list_findings(
+            {"projectId": project["id"], "status": "needs-review", "limit": 1}
+        )
+        second_page = service.list_findings(
+            {"projectId": project["id"], "severity": "high", "limit": 1, "offset": 1}
+        )
+        empty_project_page = service.list_findings({"projectId": first_analysis["projectId"]})
+
+        self.assertEqual(first_page["items"][0]["analysisId"], second_analysis["id"])
+        self.assertEqual(first_page["items"][0]["severity"], "high")
+        self.assertEqual(first_page["pagination"]["total"], 1)
+        self.assertIsNone(first_page["pagination"]["nextOffset"])
+        self.assertEqual(second_page["items"], [])
+        self.assertEqual(
+            second_page["pagination"],
+            {"total": 1, "limit": 1, "offset": 1, "nextOffset": None},
+        )
+        self.assertEqual(empty_project_page["pagination"]["total"], 1)
 
     def test_patch_finding_updates_status_and_emits_event(self) -> None:
         service, _ = self.create_firmware_analysis()

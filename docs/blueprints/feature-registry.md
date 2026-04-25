@@ -36,7 +36,7 @@
 | Audit API casing | `apps/audit-api/audit_api/casing.py` | implemented mock | `to_camel`, `to_snake` |
 | Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` |
 | Audit API server helpers | `apps/audit-api/audit_api/server.py` | implemented mock resources | `format_sse_event`, `AuditApiHandler`, `AuditApiHandler.with_service`, `do_GET`, `do_PATCH`, `do_POST` |
-| Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, artifact/finding query/update, report content, audit-log query, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
+| Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, paginated artifact/finding query/update, report content, audit-log query, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
 
 ## 4. Reserved API Routes
 
@@ -62,7 +62,7 @@
 | `POST /api/tool-executions/{toolExecutionId}:cancel` | draft | Cancel authorized tool execution |
 | `GET /api/artifacts/{artifactId}` | mock implemented | Fetch mock artifact metadata |
 | `GET /api/artifacts/{artifactId}/content` | draft | Download or preview artifact content |
-| `GET /api/findings` | mock implemented | Query mock findings by `analysisId` |
+| `GET /api/findings` | mock implemented | Query mock findings by `analysisId` or `projectId` with optional `status`/`severity` filters and `limit`/`offset` pagination |
 | `PATCH /api/findings/{findingId}` | mock implemented | Analyst status/severity updates and `finding.updated` event |
 | `POST /api/reports` | mock implemented | Generate versioned mock report artifact metadata |
 | `GET /api/reports/{reportId}` | mock implemented | Fetch mock report artifact metadata |
@@ -137,3 +137,5 @@
 | 2026-04-25 | `rg -n "report.*version|version.*report|reportVersion|versionNumber|supersedes|superseded|latestReport|regenerate|regeneration|create_report|get_report" apps/audit-api libs/audit-common docs/blueprints -S` | Existing report creation/read/content owner methods were found, but no report versioning or regeneration metadata existed. Extended `AuditMockService` and existing report tests only. |
 | 2026-04-25 | `find apps libs docs -maxdepth 5 \( -iname '*report*version*' -o -iname '*report*' -o -iname '*version*' \) -print | sort` | Only unrelated version files and existing report helpers were found; no product report versioning module existed. |
 | 2026-04-25 | `rg -n "report_\{analysis|report_\{|report_.*_markdown|memory://reports|finding_count|redaction_profile|create_report\(" apps/audit-api docs/blueprints -S` | Existing deterministic report ID and URI rules were found in `AuditMockService`; P13 extended that method instead of adding a parallel generator. |
+| 2026-04-25 | `rg -n "list_findings|findings\?|GET /api/findings|pageSize|page_size|nextPage|next_cursor|cursor|pagination|projectId|severity|FindingBoard" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing finding ownership was limited to `AuditMockService.list_findings` and `AuditApiHandler`; no project-level filters, status/severity filters, pagination envelope, or parallel finding query module existed. |
+| 2026-04-25 | `find apps libs docs -maxdepth 5 \( -iname '*finding*' -o -iname '*pagination*' -o -iname '*filter*' \) -print | sort` | Only prior artifact/finding plan docs and unrelated upstream tests were found; P14 extended the existing mock service and handler only. |

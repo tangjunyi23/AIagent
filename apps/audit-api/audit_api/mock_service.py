@@ -256,14 +256,44 @@ class AuditMockService:
         ]
         return [cast(PublicResource, to_camel(log)) for log in logs]
 
-    def list_findings(self, analysis_id: str) -> list[PublicResource]:
-        self._require_analysis(analysis_id)
+    def list_findings(
+        self,
+        filters: PublicResource | str | None = None,
+    ) -> PublicResource:
+        body = self._finding_query_body(filters)
+        analysis_id = body.get("analysis_id")
+        project_id = body.get("project_id")
+        status = body.get("status")
+        severity = body.get("severity")
+        limit = self._positive_int(body.get("limit"), default=50, field="limit")
+        offset = self._non_negative_int(body.get("offset"), default=0, field="offset")
+        if analysis_id is None and project_id is None:
+            raise ValueError("analysisId or projectId is required")
+        if analysis_id is not None:
+            self._require_analysis(str(analysis_id))
+        if project_id is not None:
+            self._require_project(str(project_id))
         findings = [
             finding
             for finding in self._findings.values()
-            if finding["analysis_id"] == analysis_id
+            if (analysis_id is None or finding["analysis_id"] == str(analysis_id))
+            and (project_id is None or finding["project_id"] == str(project_id))
+            and (status is None or finding["status"] == str(status))
+            and (severity is None or finding["severity"] == str(severity))
         ]
-        return [cast(PublicResource, to_camel(finding)) for finding in findings]
+        findings = sorted(findings, key=lambda finding: finding["id"])
+        total = len(findings)
+        page = findings[offset : offset + limit]
+        next_offset = offset + limit if offset + limit < total else None
+        return {
+            "items": [cast(PublicResource, to_camel(finding)) for finding in page],
+            "pagination": {
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "nextOffset": next_offset,
+            },
+        }
 
     def patch_finding(self, finding_id: str, payload: PublicResource) -> PublicResource:
         if finding_id not in self._findings:
@@ -606,6 +636,32 @@ class AuditMockService:
         if not artifact["type"].startswith("report."):
             raise KeyError(f"unknown report: {report_id}")
         return artifact
+
+    @staticmethod
+    def _finding_query_body(filters: PublicResource | str | None) -> dict[str, Any]:
+        if filters is None:
+            return {}
+        if isinstance(filters, str):
+            return {"analysis_id": filters}
+        return cast(dict[str, Any], to_snake(filters))
+
+    @staticmethod
+    def _positive_int(value: object, default: int, field: str) -> int:
+        if value in (None, ""):
+            return default
+        parsed = int(cast(str | int, value))
+        if parsed < 1:
+            raise ValueError(f"{field} must be greater than zero")
+        return parsed
+
+    @staticmethod
+    def _non_negative_int(value: object, default: int, field: str) -> int:
+        if value in (None, ""):
+            return default
+        parsed = int(cast(str | int, value))
+        if parsed < 0:
+            raise ValueError(f"{field} must be greater than or equal to zero")
+        return parsed
 
     def _next_report_version(self, analysis_id: str, report_format: str) -> int:
         prefix = f"report_{analysis_id}_{report_format}"

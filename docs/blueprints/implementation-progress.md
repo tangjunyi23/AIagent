@@ -1671,3 +1671,119 @@ Observed result:
 1. Add project-level finding filters and pagination for frontend FindingBoard list views.
 2. Add `GET /api/artifacts/{artifactId}/content` for non-report artifacts only after export authorization, audit-log action names, and redaction rules are finalized.
 3. Replace in-memory audit logs, reports, and artifacts with persistence/object storage once RBAC and tenant checks are implemented.
+
+## 2026-04-25: P14 Paginated Finding Queries
+
+### Scope
+
+- Extended existing `AuditMockService.list_findings` instead of adding a parallel finding query module.
+- Added `analysisId` or `projectId` scoped finding queries with optional `status` and `severity` filters.
+- Added `limit`/`offset` pagination metadata with `total`, `limit`, `offset`, and `nextOffset`.
+- Updated `GET /api/findings` HTTP dispatch to pass public query parameters into the existing service method.
+- Preserved existing `PATCH /api/findings/{findingId}` behavior and did not add worker-produced finding creation, database persistence, RBAC, Agent Server routes, MCP routes, or new SSE event types.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_mock_service.py`
+- `apps/audit-api/tests/test_server.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/oss/python/langgraph/overview`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+- `https://docs.langchain.com/langsmith/agent-server`
+- `https://docs.langchain.com/langsmith/server-mcp`
+
+Adopted conclusions:
+
+- Keep findings as product-owned durable records behind `/api/*`; raw Agent Server, MCP, and LangGraph stream surfaces remain integration targets behind business authorization.
+- Keep `finding.created` and `finding.updated` as refresh triggers only; paginated list state is fetched from the business API.
+- Persistence/checkpoint-backed state remains later work; the mock query envelope should already match the future database list contract.
+- Interrupt and approval semantics are unchanged by read-only finding list filters.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "list_findings|findings\?|GET /api/findings|pageSize|page_size|nextPage|next_cursor|cursor|pagination|projectId|severity|FindingBoard" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S
+find apps libs docs -maxdepth 5 \( -iname '*finding*' -o -iname '*pagination*' -o -iname '*filter*' \) -print | sort
+```
+
+Result:
+
+- Existing finding ownership was `apps/audit-api/audit_api/mock_service.py` and `apps/audit-api/audit_api/server.py`.
+- No project-level finding filter, status/severity filter, pagination envelope, or parallel finding query module existed.
+- P14 extended the existing service and handler only.
+
+### TDD Evidence
+
+Red targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_list_findings_returns_analysis_findings tests.test_mock_service.MockServiceTests.test_list_findings_filters_by_project_status_severity_and_paginates tests.test_server.AuditApiHandlerRouteTests.test_get_findings_filters_by_analysis tests.test_server.AuditApiHandlerRouteTests.test_get_findings_supports_project_filters_and_pagination -v
+```
+
+Observed result before implementation:
+
+- Service tests errored because `list_findings` accepted only a raw analysis ID and attempted to use a filter dictionary as a key.
+- Existing HTTP finding route returned a bare list for `analysisId` and returned 404 for the new project/status/severity/limit/offset query path.
+
+Green targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_list_findings_returns_analysis_findings tests.test_mock_service.MockServiceTests.test_list_findings_filters_by_project_status_severity_and_paginates tests.test_server.AuditApiHandlerRouteTests.test_get_findings_filters_by_analysis tests.test_server.AuditApiHandlerRouteTests.test_get_findings_supports_project_filters_and_pagination -v
+```
+
+Observed result after implementation:
+
+- 4 targeted tests ran and passed.
+
+### Files Changed
+
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `apps/audit-api/audit_api/server.py`
+- Updated `apps/audit-api/tests/test_mock_service.py`
+- Updated `apps/audit-api/tests/test_server.py`
+- Updated `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Validation
+
+Final validation commands:
+
+```bash
+cd apps/audit-api && make format && make lint && make test
+rg -n "P14|Paginated Finding|nextOffset|projectId.*status.*severity|Finding Queries Are Product API Envelopes|GET /api/findings" docs/blueprints apps/audit-api -S
+rg -n '``[^`\n]+``' apps/audit-api docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md docs/blueprints/binary-audit-platform-frontend-blueprint.md -S
+```
+
+Observed result:
+
+- `make format` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make lint` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make test` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest discover tests -v`; 47 API tests ran and passed.
+- P14 keyword search returned the updated code, tests, OpenAPI contract, event note, decision log, feature registry, frontend blueprint, and progress log.
+- Inline Sphinx-style double-backtick search in touched code and blueprint paths returned no matches.
+
+### Next Recommended Tasks
+
+1. Add `GET /api/artifacts/{artifactId}/content` for non-report artifacts only after export authorization, audit-log action names, and redaction rules are finalized.
+2. Replace in-memory audit logs, reports, artifacts, and finding queries with persistence/object storage once RBAC and tenant checks are implemented.
+3. Add a persistence-facing repository interface for `AuditMockService` so future storage work can keep the public API contract stable.

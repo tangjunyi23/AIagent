@@ -196,3 +196,15 @@
   - https://docs.langchain.com/langsmith/agent-server
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/persistence
+
+## 2026-04-25: Finding Queries Are Product API Envelopes
+
+- Decision: P14 extends `GET /api/findings` in `AuditMockService` and `AuditApiHandler` with `analysisId` or `projectId` scoping, optional `status`/`severity` filters, and `limit`/`offset` pagination metadata.
+- Reason: frontend FindingBoard list views need project-level browsing before persistence and RBAC exist, but the query must still pass through the business API boundary where tenant checks and audit controls will later live.
+- Boundary: no separate finding service module, database query layer, Agent Server route, MCP route, new SSE event type, or worker-produced finding normalizer is introduced.
+- Official docs: LangGraph streaming/state and Agent Server/MCP remain integration sources behind product APIs; durable finding records and list pagination stay product-owned.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/persistence

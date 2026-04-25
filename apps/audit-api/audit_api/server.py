@@ -80,9 +80,15 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 self._send_error(404, "not_found", str(exc))
             return
         if path == "/api/findings":
-            analysis_id = parse_qs(parsed_url.query).get("analysisId", [""])[0]
+            filters = {
+                key: values[0]
+                for key, values in parse_qs(parsed_url.query).items()
+                if values
+            }
             try:
-                self._send_json(200, self.service.list_findings(analysis_id))
+                self._send_json(200, self.service.list_findings(filters))
+            except ValueError as exc:
+                self._send_error(400, "bad_request", str(exc))
             except KeyError as exc:
                 self._send_error(404, "not_found", str(exc))
             return
