@@ -241,6 +241,33 @@ class AuditApiHandlerRouteTests(unittest.TestCase):
         self.assertEqual(payload["id"], "report_analysis_1_markdown")
         self.assertEqual(payload["analysisId"], "analysis_1")
 
+    def test_get_report_content_dispatches_and_records_audit_log(self) -> None:
+        self.create_firmware_analysis()
+        self.post_json(
+            "/api/reports",
+            {
+                "analysisId": "analysis_1",
+                "format": "markdown",
+                "includeUnverifiedFindings": True,
+                "redactionProfile": "default",
+            },
+        )
+
+        status, payload = self.get_json("/api/reports/report_analysis_1_markdown/content")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["reportId"], "report_analysis_1_markdown")
+        self.assertEqual(payload["mediaType"], "text/markdown")
+        self.assertTrue(payload["redacted"])
+        self.assertIn("Mock Binary Audit Report", payload["content"])
+        self.assertEqual(payload["auditLogId"], "audit_1")
+
+        _, logs = self.get_json("/api/audit-logs?analysisId=analysis_1")
+        audit_logs = list(logs)
+        self.assertEqual(len(audit_logs), 1)
+        self.assertEqual(audit_logs[0]["action"], "report.content.read")
+        self.assertEqual(audit_logs[0]["resourceId"], "report_analysis_1_markdown")
+
     def test_get_analysis_events_returns_sse_frames(self) -> None:
         self.create_firmware_analysis()
 

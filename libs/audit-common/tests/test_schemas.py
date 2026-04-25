@@ -7,6 +7,7 @@ from audit_common import (
     Analysis,
     ApprovalAction,
     ArtifactRef,
+    AuditLog,
     AuditEvent,
     AuditPolicy,
     Finding,
@@ -167,6 +168,26 @@ class SchemaTests(unittest.TestCase):
 
         self.assertEqual(event["sequence"], 42)
         self.assertEqual(event["payload"]["artifact_type"], "static.objdump")
+
+    def test_audit_log_records_sensitive_resource_access(self) -> None:
+        log: AuditLog = {
+            "id": "audit_123",
+            "tenant_id": "tenant_123",
+            "project_id": "project_123",
+            "analysis_id": "analysis_123",
+            "actor_id": "analyst@example.com",
+            "action": "report.content.read",
+            "resource_type": "report",
+            "resource_id": "report_123",
+            "outcome": "allowed",
+            "reason": "Mock report content read.",
+            "metadata": {"redaction_profile": "default"},
+            "created_at": "2026-04-24T16:00:00Z",
+        }
+
+        self.assertEqual(log["actor_id"], "analyst@example.com")
+        self.assertEqual(log["resource_type"], "report")
+        self.assertEqual(log["outcome"], "allowed")
 
     def test_dangerous_approval_actions_are_identified(self) -> None:
         dangerous_actions: list[ApprovalAction] = [

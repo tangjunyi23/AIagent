@@ -181,6 +181,8 @@ ArtifactCreatedPayload:
 
 P11 mock status: `POST /api/reports` emits `artifact.created` for report artifacts. The payload references report metadata only; content download remains outside the mock event payload.
 
+P12 mock status: `GET /api/reports/{reportId}/content` records a structured `AuditLog` entry instead of emitting a timeline SSE event. Report content is returned only by the explicit content endpoint and is not embedded in `artifact.created` or other product event payloads.
+
 ### 4.8 Finding Events
 
 ```yaml

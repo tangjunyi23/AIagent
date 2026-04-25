@@ -72,6 +72,13 @@ class AuditApiHandler(BaseHTTPRequestHandler):
         if path == "/api/projects":
             self._send_json(200, self.service.list_projects())
             return
+        if path == "/api/audit-logs":
+            analysis_id = parse_qs(parsed_url.query).get("analysisId", [""])[0] or None
+            try:
+                self._send_json(200, self.service.list_audit_logs(analysis_id))
+            except KeyError as exc:
+                self._send_error(404, "not_found", str(exc))
+            return
         if path == "/api/findings":
             analysis_id = parse_qs(parsed_url.query).get("analysisId", [""])[0]
             try:
@@ -97,6 +104,14 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             artifact_id = path.removeprefix("/api/artifacts/")
             try:
                 self._send_json(200, self.service.get_artifact(artifact_id))
+            except KeyError as exc:
+                self._send_error(404, "not_found", str(exc))
+            return
+        if path.startswith("/api/reports/") and path.endswith("/content"):
+            report_id = path.removeprefix("/api/reports/").removesuffix("/content")
+            actor_id = self.headers.get("x-actor-id", "mock_analyst")
+            try:
+                self._send_json(200, self.service.get_report_content(report_id, actor_id))
             except KeyError as exc:
                 self._send_error(404, "not_found", str(exc))
             return

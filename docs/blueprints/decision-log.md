@@ -170,3 +170,17 @@
   - https://docs.langchain.com/langsmith/server-mcp
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/interrupts
+
+## 2026-04-25: Report Content Reads Require Audit Logs
+
+- Decision: P12 implements `GET /api/reports/{reportId}/content` as a redacted mock content endpoint and records each read as an `AuditLog` with action `report.content.read`.
+- Reason: report content is a sensitive artifact access path. Even in the mock API, content reads must pass through the product boundary and leave a structured audit trail before object storage, RBAC, and export approvals are added.
+- Boundary: generic `GET /api/artifacts/{artifactId}/content`, object storage downloads, original sample export, PCAP export, decompiler project export, Agent Server routes, and MCP exposure remain out of scope.
+- Official docs: LangGraph streaming and Agent Server/MCP remain integration targets behind the business API; durable state/events should be normalized by product APIs, while sensitive content access is represented by product audit records.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/langsmith/server-mcp
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/interrupts
+  - https://docs.langchain.com/oss/python/langgraph/persistence

@@ -211,6 +211,26 @@ ApprovalRequest:
   decisionReason: string | null
 ```
 
+### 2.10 AuditLog
+
+```yaml
+AuditLog:
+  id: string
+  tenantId: string
+  projectId: string
+  analysisId: string | null
+  actorId: string
+  action: string
+  resourceType: string
+  resourceId: string
+  outcome: allowed | denied
+  reason: string | null
+  metadata: object
+  createdAt: string
+```
+
+Mock actions currently include `report.content.read`. Future production actions will cover sensitive artifact downloads, approval decisions, policy denials, analyst finding updates, and administrative changes.
+
 ## 3. API Endpoints
 
 ### 3.1 Projects
@@ -388,15 +408,42 @@ GET /api/reports/{reportId}/content
 }
 ```
 
-P11 mock status: `POST /api/reports` and `GET /api/reports/{reportId}` are implemented as in-memory report artifacts. Supported mock formats are `markdown`, `html`, and `pdf`; the response is an `ArtifactRef` with `type` set to `report.markdown`, `report.html`, or `report.pdf`. The mock emits `artifact.created` and updates `GET /api/analyses/{analysisId}/state`. `GET /api/reports/{reportId}/content` remains draft until report content authorization and audit logging are defined.
+P11 mock status: `POST /api/reports` and `GET /api/reports/{reportId}` are implemented as in-memory report artifacts. Supported mock formats are `markdown`, `html`, and `pdf`; the response is an `ArtifactRef` with `type` set to `report.markdown`, `report.html`, or `report.pdf`. The mock emits `artifact.created` and updates `GET /api/analyses/{analysisId}/state`.
 
-### 3.9 Mock API Implementation Notes
+P12 mock status: `GET /api/reports/{reportId}/content` returns a redacted mock content envelope for report artifacts only and records an `AuditLog` entry with action `report.content.read`. It does not read object storage, return original samples, expose PCAPs, expose decompiler projects, stream bulk tool output, call Agent Server, or expose MCP.
+
+`GET /api/reports/{reportId}/content` response:
+
+```json
+{
+  "reportId": "report_analysis_123_markdown",
+  "artifactId": "report_analysis_123_markdown",
+  "analysisId": "analysis_123",
+  "projectId": "project_123",
+  "mediaType": "text/markdown",
+  "filename": "analysis_123-audit-report.md",
+  "encoding": "utf-8",
+  "redacted": true,
+  "auditLogId": "audit_1",
+  "content": "# Mock Binary Audit Report\n\n..."
+}
+```
+
+### 3.9 Audit Logs
+
+```http
+GET /api/audit-logs?analysisId={analysisId}
+```
+
+P12 mock status: `GET /api/audit-logs?analysisId={analysisId}` returns in-memory `AuditLog` records for the analysis. The mock records report content reads so frontend and later RBAC work can verify that sensitive content access has a structured audit trail.
+
+### 3.10 Mock API Implementation Notes
 
 The first `apps/audit-api` implementation is an in-memory mock for parallel frontend and agent development:
 
 - Public service methods accept and return camelCase dictionaries matching this contract.
 - Internal resources are stored with Python snake_case keys matching `libs/audit-common`.
-- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, and `GET /api/reports/{reportId}` have mock HTTP handler coverage.
+- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage.
 - Mock `POST /api/samples:upload` accepts JSON sample metadata for frontend and agent parallel development; production multipart upload parsing remains deferred.
 - SSE formatting is represented by `format_sse_event`; authentication, RBAC, persistent storage, native Agent Server run creation, and MCP exposure are intentionally deferred.
 

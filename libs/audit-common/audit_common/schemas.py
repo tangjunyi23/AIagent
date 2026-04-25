@@ -29,6 +29,7 @@ ToolExecutionStatus: TypeAlias = Literal[
 ]
 NetworkPolicy: TypeAlias = Literal["none", "allowlist", "unrestricted"]
 SimulationMode: TypeAlias = Literal["skip", "component", "qemu-system", "emba"]
+AuditLogOutcome: TypeAlias = Literal["allowed", "denied"]
 ApprovalAction: TypeAlias = Literal[
     "dynamic-execution",
     "network-enable",
@@ -330,6 +331,21 @@ class AuditEvent(TypedDict):
     payload: dict[str, object]
     created_at: str
     trace_id: str | None
+
+
+class AuditLog(TypedDict):
+    id: str
+    tenant_id: str
+    project_id: str
+    analysis_id: str | None
+    actor_id: str
+    action: str
+    resource_type: str
+    resource_id: str
+    outcome: AuditLogOutcome
+    reason: str | None
+    metadata: dict[str, object]
+    created_at: str
 
 
 class ErrorEnvelope(TypedDict):

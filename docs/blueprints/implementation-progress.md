@@ -1420,3 +1420,141 @@ Observed result:
 1. Add `GET /api/reports/{reportId}/content` only after artifact authorization and sensitive export audit-log shape are finalized.
 2. Add report regeneration/versioning fields before multiple report artifacts per analysis are needed.
 3. Wire real Report Agent output into artifact storage after persistence and object storage are introduced.
+
+## 2026-04-25: P12 Report Content Audit Boundary
+
+### Scope
+
+- Added a shared `AuditLog` schema for sensitive product boundary actions.
+- Implemented `GET /api/reports/{reportId}/content` as a redacted mock content endpoint for report artifacts only.
+- Added `AuditMockService.list_audit_logs` and `GET /api/audit-logs?analysisId=...` so report content reads leave a structured audit trail.
+- Kept generic artifact content download, object storage, original sample export, PCAP export, decompiler project export, RBAC, Agent Server routes, MCP exposure, and real Report Agent execution out of scope.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_mock_service.py`
+- `apps/audit-api/tests/test_server.py`
+- `libs/audit-common/audit_common/schemas.py`
+- `libs/audit-common/audit_common/__init__.py`
+- `libs/audit-common/tests/test_schemas.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/langsmith/agent-server`
+- `https://docs.langchain.com/langsmith/server-mcp`
+- `https://docs.langchain.com/oss/python/langgraph/overview`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+
+Adopted conclusions:
+
+- Keep product `/api/*` routes as the authorization, RBAC, audit, and redaction boundary; do not expose native Agent Server or MCP routes to the frontend business API.
+- Keep report content out of SSE event payloads; streaming remains a normalized timeline/state UX channel, while content access is explicit and audited.
+- Treat real persistence, checkpoint-backed state, object storage, and Agent Server/MCP integration as later work after the product contract is stable.
+- Use structured records for sensitive actions instead of natural-language-only logs.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "AuditLog|audit log|audit_log|audit-logs|auditLogs|report.*content|reports/.*/content|artifact.*content|artifact-export|sensitive export|export" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S
+find apps libs docs -maxdepth 5 \( -iname '*audit*log*' -o -iname '*content*' -o -iname '*report*' -o -iname '*artifact*' \) -print | sort
+rg -n "get_report\(|create_report\(|get_artifact\(|list_events\(|AuditMockService|AuditApiHandler|GET /api/reports|GET /api/artifacts/.*/content" apps/audit-api libs/audit-common docs/blueprints -S
+```
+
+Result:
+
+- Report/artifact content routes were draft-only contract entries.
+- No existing `AuditLog` schema, audit-log query route, or report content service existed.
+- Existing owner files were `AuditMockService` and `AuditApiHandler`; P12 extended those files and `libs/audit-common` only.
+- No parallel content, artifact, report, Agent Server, or MCP module was added.
+
+### TDD Evidence
+
+Red schema test:
+
+```bash
+cd libs/audit-common && python3 -m unittest tests.test_schemas.SchemaTests.test_audit_log_records_sensitive_resource_access -v
+```
+
+Observed result before implementation:
+
+- Failed with `ImportError: cannot import name 'AuditLog' from 'audit_common'`.
+
+Red API tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_get_report_content_returns_redacted_payload_and_audit_log tests.test_mock_service.MockServiceTests.test_get_report_content_rejects_non_report_artifact tests.test_server.AuditApiHandlerRouteTests.test_get_report_content_dispatches_and_records_audit_log -v
+```
+
+Observed result before implementation:
+
+- Service tests errored with `AttributeError: 'AuditMockService' object has no attribute 'get_report_content'`.
+- HTTP route test failed with `HTTP Error 404: Not Found`.
+
+Green targeted tests:
+
+```bash
+cd libs/audit-common && python3 -m unittest tests.test_schemas.SchemaTests.test_audit_log_records_sensitive_resource_access -v
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_get_report_content_returns_redacted_payload_and_audit_log tests.test_mock_service.MockServiceTests.test_get_report_content_rejects_non_report_artifact tests.test_server.AuditApiHandlerRouteTests.test_get_report_content_dispatches_and_records_audit_log -v
+```
+
+Observed result after implementation:
+
+- The targeted shared schema test ran and passed.
+- 3 targeted API tests ran and passed.
+
+### Files Changed
+
+- Updated `libs/audit-common/audit_common/schemas.py`
+- Updated `libs/audit-common/audit_common/__init__.py`
+- Updated `libs/audit-common/tests/test_schemas.py`
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `apps/audit-api/audit_api/server.py`
+- Updated `apps/audit-api/tests/test_mock_service.py`
+- Updated `apps/audit-api/tests/test_server.py`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Validation
+
+Final validation commands:
+
+```bash
+cd libs/audit-common && make format && make lint && make test
+cd apps/audit-api && make format && make lint && make test
+rg -n "AuditLog|report\.content\.read|GET /api/reports/\{reportId\}/content|GET /api/audit-logs|P12" docs/blueprints libs/audit-common apps/audit-api -S
+rg -n "GET /api/reports/\{reportId\}/content.*draft|reports/\{reportId\}/content.*remains draft|report content.*remains draft" docs/blueprints/openapi-contract.md docs/blueprints/feature-registry.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md -S
+rg -n '``[^`\n]+``' apps/audit-api libs/audit-common -S
+```
+
+Observed result:
+
+- `libs/audit-common` format and lint ran `python3 -m compileall -q audit_common tests`.
+- `libs/audit-common` test ran `python3 -m unittest discover tests -v`; 8 schema tests ran and passed.
+- `apps/audit-api` format and lint ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `apps/audit-api` test ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest discover tests -v`; 43 API tests ran and passed.
+- Contract keyword search returned the P12 code, tests, and blueprint updates.
+- Draft-conflict search for report content returned no matches.
+- Inline Sphinx-style double-backtick search in touched code paths returned no matches.
+
+### Next Recommended Tasks
+
+1. Add `GET /api/artifacts/{artifactId}/content` for non-report artifacts only after export authorization, audit-log action names, and redaction rules are finalized.
+2. Add report regeneration/versioning fields before multiple report artifacts per analysis are needed.
+3. Replace in-memory audit logs and artifacts with persistence/object storage once RBAC and tenant checks are implemented.

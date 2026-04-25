@@ -142,6 +142,46 @@ class MockServiceTests(unittest.TestCase):
         state = service.get_analysis_state(str(analysis["id"]))
         self.assertIn("report_analysis_1_markdown", [item["id"] for item in state["artifacts"]])
 
+    def test_get_report_content_returns_redacted_payload_and_audit_log(self) -> None:
+        service, analysis = self.create_firmware_analysis()
+        service.create_report(
+            {
+                "analysisId": analysis["id"],
+                "format": "markdown",
+                "includeUnverifiedFindings": True,
+                "redactionProfile": "default",
+            }
+        )
+
+        content = service.get_report_content(
+            "report_analysis_1_markdown",
+            actor_id="analyst@example.com",
+        )
+
+        self.assertEqual(content["reportId"], "report_analysis_1_markdown")
+        self.assertEqual(content["artifactId"], "report_analysis_1_markdown")
+        self.assertEqual(content["analysisId"], analysis["id"])
+        self.assertEqual(content["mediaType"], "text/markdown")
+        self.assertEqual(content["encoding"], "utf-8")
+        self.assertTrue(content["redacted"])
+        self.assertIn("Mock Binary Audit Report", str(content["content"]))
+        self.assertEqual(content["auditLogId"], "audit_1")
+
+        logs = service.list_audit_logs(str(analysis["id"]))
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0]["id"], "audit_1")
+        self.assertEqual(logs[0]["actorId"], "analyst@example.com")
+        self.assertEqual(logs[0]["action"], "report.content.read")
+        self.assertEqual(logs[0]["resourceType"], "report")
+        self.assertEqual(logs[0]["resourceId"], "report_analysis_1_markdown")
+        self.assertEqual(logs[0]["outcome"], "allowed")
+
+    def test_get_report_content_rejects_non_report_artifact(self) -> None:
+        service, _ = self.create_firmware_analysis()
+
+        with self.assertRaises(KeyError):
+            service.get_report_content("artifact_analysis_1_evidence")
+
     def test_list_events_returns_mock_sse_ready_events(self) -> None:
         service = AuditMockService()
         project = service.create_project(

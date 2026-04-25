@@ -10,6 +10,8 @@ from audit_common import (
     ApprovalStatus,
     ArtifactRef,
     AuditEvent,
+    AuditLog,
+    AuditLogOutcome,
     AuditPolicy,
     Classification,
     Finding,
@@ -32,6 +34,7 @@ class AuditMockService:
         self._analyses: dict[str, Analysis] = {}
         self._artifacts: dict[str, ArtifactRef] = {}
         self._findings: dict[str, Finding] = {}
+        self._audit_logs: list[AuditLog] = []
         self._agent_states: dict[str, AuditAgentState] = {}
         self._approvals: dict[str, list[ApprovalRequest]] = {}
         self._events: dict[str, list[AuditEvent]] = {}
@@ -40,6 +43,7 @@ class AuditMockService:
         self._next_analysis = 1
         self._next_run = 1
         self._next_event = 1
+        self._next_audit_log = 1
 
     def create_project(self, payload: PublicResource) -> PublicResource:
         body = cast(dict[str, Any], to_snake(payload))
@@ -186,12 +190,56 @@ class AuditMockService:
         return cast(PublicResource, to_camel(artifact))
 
     def get_report(self, report_id: str) -> PublicResource:
-        if report_id not in self._artifacts:
-            raise KeyError(f"unknown report: {report_id}")
-        artifact = self._artifacts[report_id]
-        if not artifact["type"].startswith("report."):
-            raise KeyError(f"unknown report: {report_id}")
+        artifact = self._require_report_artifact(report_id)
         return cast(PublicResource, to_camel(artifact))
+
+    def get_report_content(
+        self,
+        report_id: str,
+        actor_id: str = "mock_analyst",
+    ) -> PublicResource:
+        artifact = self._require_report_artifact(report_id)
+        analysis = self._analyses[artifact["analysis_id"]]
+        encoding, content = self._render_report_content(artifact)
+        audit_log = self._record_audit_log(
+            analysis=analysis,
+            actor_id=actor_id,
+            action="report.content.read",
+            resource_type="report",
+            resource_id=report_id,
+            outcome="allowed",
+            reason="Mock report content read.",
+            metadata={
+                "artifact_type": artifact["type"],
+                "media_type": artifact["media_type"],
+                "redaction_profile": str(
+                    artifact["metadata"].get("redaction_profile", "default")
+                ),
+            },
+        )
+        payload = {
+            "report_id": report_id,
+            "artifact_id": artifact["id"],
+            "analysis_id": artifact["analysis_id"],
+            "project_id": artifact["project_id"],
+            "media_type": artifact["media_type"],
+            "filename": artifact["name"],
+            "encoding": encoding,
+            "redacted": True,
+            "audit_log_id": audit_log["id"],
+            "content": content,
+        }
+        return cast(PublicResource, to_camel(payload))
+
+    def list_audit_logs(self, analysis_id: str | None = None) -> list[PublicResource]:
+        if analysis_id:
+            self._require_analysis(analysis_id)
+        logs = [
+            log
+            for log in self._audit_logs
+            if analysis_id is None or log["analysis_id"] == analysis_id
+        ]
+        return [cast(PublicResource, to_camel(log)) for log in logs]
 
     def list_findings(self, analysis_id: str) -> list[PublicResource]:
         self._require_analysis(analysis_id)
@@ -426,6 +474,36 @@ class AuditMockService:
             "trace_id": None,
         }
 
+    def _record_audit_log(
+        self,
+        analysis: Analysis,
+        actor_id: str,
+        action: str,
+        resource_type: str,
+        resource_id: str,
+        outcome: AuditLogOutcome,
+        reason: str | None,
+        metadata: dict[str, object],
+    ) -> AuditLog:
+        project = self._projects[analysis["project_id"]]
+        log: AuditLog = {
+            "id": self._allocate_id("audit", self._next_audit_log),
+            "tenant_id": project["tenant_id"],
+            "project_id": analysis["project_id"],
+            "analysis_id": analysis["id"],
+            "actor_id": actor_id,
+            "action": action,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "outcome": outcome,
+            "reason": reason,
+            "metadata": metadata,
+            "created_at": self._timestamp(),
+        }
+        self._next_audit_log += 1
+        self._audit_logs.append(log)
+        return log
+
     def _create_firmware_emulation_approval(self, analysis: Analysis) -> ApprovalRequest:
         return {
             "id": f"approval_{analysis['id']}_firmware_emulation",
@@ -506,6 +584,14 @@ class AuditMockService:
         if analysis_id not in self._analyses:
             raise KeyError(f"unknown analysis: {analysis_id}")
 
+    def _require_report_artifact(self, report_id: str) -> ArtifactRef:
+        if report_id not in self._artifacts:
+            raise KeyError(f"unknown report: {report_id}")
+        artifact = self._artifacts[report_id]
+        if not artifact["type"].startswith("report."):
+            raise KeyError(f"unknown report: {report_id}")
+        return artifact
+
     @staticmethod
     def _report_format_metadata(report_format: str) -> tuple[str, str, str]:
         formats = {
@@ -516,6 +602,30 @@ class AuditMockService:
         if report_format not in formats:
             raise ValueError(f"unsupported report format: {report_format}")
         return formats[report_format]
+
+    @staticmethod
+    def _render_report_content(artifact: ArtifactRef) -> tuple[str, str]:
+        finding_count = artifact["metadata"].get("finding_count", 0)
+        redaction_profile = artifact["metadata"].get("redaction_profile", "default")
+        if artifact["type"] == "report.html":
+            return (
+                "utf-8",
+                "<h1>Mock Binary Audit Report</h1>"
+                f"<p>Analysis: {artifact['analysis_id']}</p>"
+                f"<p>Findings included: {finding_count}</p>"
+                f"<p>Redaction profile: {redaction_profile}</p>",
+            )
+        if artifact["type"] == "report.pdf":
+            return ("base64", "JVBERi0xLjQKJSBtb2NrIHJlZGFjdGVkIHJlcG9ydAo=")
+        return (
+            "utf-8",
+            "# Mock Binary Audit Report\n\n"
+            f"Analysis: {artifact['analysis_id']}\n"
+            f"Findings included: {finding_count}\n"
+            f"Redaction profile: {redaction_profile}\n\n"
+            "This mock content excludes raw samples, credentials, PCAP data, "
+            "and bulk tool outputs.",
+        )
 
     def _sync_agent_state(self, analysis_id: str) -> None:
         state = self._agent_states[analysis_id]

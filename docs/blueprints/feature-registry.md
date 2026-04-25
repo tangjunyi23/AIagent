@@ -23,20 +23,20 @@
 
 | Feature | Entry File | Status | Public Names |
 | --- | --- | --- | --- |
-| Business API draft | `docs/blueprints/openapi-contract.md` | draft | `Project`, `Sample`, `Analysis`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditPolicy` |
+| Business API draft | `docs/blueprints/openapi-contract.md` | draft | `Project`, `Sample`, `Analysis`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditPolicy`, `AuditLog` |
 | SSE event draft | `docs/blueprints/event-schema.md` | draft | `AuditEvent`, `AuditEventType`, `RunPayload`, `StateSnapshotPayload`, `AgentPayload`, `ToolPayload`, `FindingPayload`, `ApprovalPayload` |
 | Progress log | `docs/blueprints/implementation-progress.md` | active | M0 documentation tracking |
 | Decision log | `docs/blueprints/decision-log.md` | active | architecture decision records |
-| Shared schema package | `libs/audit-common/audit_common/schemas.py` | implemented | `Project`, `Sample`, `Analysis`, `AuditPolicy`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditEvent`, `ErrorEnvelope` |
+| Shared schema package | `libs/audit-common/audit_common/schemas.py` | implemented | `Project`, `Sample`, `Analysis`, `AuditPolicy`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditEvent`, `AuditLog`, `ErrorEnvelope` |
 | Shared schema exports | `libs/audit-common/audit_common/__init__.py` | implemented | package-level imports for common schema names and enum value tuples |
-| Shared schema tests | `libs/audit-common/tests/test_schemas.py` | implemented | contract shape checks for artifacts, findings, tool limits, events, and dangerous approvals |
+| Shared schema tests | `libs/audit-common/tests/test_schemas.py` | implemented | contract shape checks for artifacts, findings, tool limits, events, audit logs, and dangerous approvals |
 | Audit agent state | `apps/audit-agents/audit_agents/state.py` | implemented skeleton | `AuditAgentState`, `create_initial_state` |
 | Audit supervisor graph | `apps/audit-agents/audit_agents/supervisor.py` | implemented skeleton | `SupervisorGraphSpec`, `build_supervisor_graph`, `triage_sample`, idempotent `request_dangerous_action_approval` |
 | Audit agent tests | `apps/audit-agents/tests/` | implemented skeleton | state initialization, supervisor node updates, graph build smoke test |
 | Audit API casing | `apps/audit-api/audit_api/casing.py` | implemented mock | `to_camel`, `to_snake` |
-| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `list_findings`, `patch_finding`, `start_run`, `resume_run`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` |
+| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` |
 | Audit API server helpers | `apps/audit-api/audit_api/server.py` | implemented mock resources | `format_sse_event`, `AuditApiHandler`, `AuditApiHandler.with_service`, `do_GET`, `do_PATCH`, `do_POST` |
-| Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, artifact/finding query/update, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
+| Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, artifact/finding query/update, report content, audit-log query, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
 
 ## 4. Reserved API Routes
 
@@ -66,7 +66,8 @@
 | `PATCH /api/findings/{findingId}` | mock implemented | Analyst status/severity updates and `finding.updated` event |
 | `POST /api/reports` | mock implemented | Generate mock report artifact metadata |
 | `GET /api/reports/{reportId}` | mock implemented | Fetch mock report artifact metadata |
-| `GET /api/reports/{reportId}/content` | draft | Download or preview report content |
+| `GET /api/reports/{reportId}/content` | mock implemented | Return redacted mock report content and record `report.content.read` audit log |
+| `GET /api/audit-logs` | mock implemented | Query mock audit logs by `analysisId` |
 
 ## 5. Reserved Event Types
 
@@ -130,3 +131,6 @@
 | 2026-04-24 | `rg -n "resume|run\.resumed|start_run|decide_approval|approved|ApprovalRequest|interrupt.*resume|Command\(resume|POST /api/analyses/.*/runs|:resume|run resume|safe resume|dangerous" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing approval decision and mock run start flows found; no mock resume service or route existed. Extended `AuditMockService`/`AuditApiHandler` only and did not add Agent Server or LangGraph `Command(resume=...)` integration. |
 | 2026-04-24 | `rg -n "artifacts|findings|reports|runs:resume|approvals|state|events|do_POST|do_GET|resume_run|list_artifacts|list_findings|get_artifact|get_finding" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing schemas and draft routes found; no artifact/finding query/update implementation existed. Extended `AuditMockService`/`AuditApiHandler` only. |
 | 2026-04-25 | `rg -n "Report|reports|POST /api/reports|GET /api/reports|report\." docs/blueprints/openapi-contract.md docs/blueprints/feature-registry.md docs/blueprints/binary-audit-platform-*.md apps libs/audit-common -S` | Report artifact types and draft routes existed, but no mock report service or HTTP dispatch existed. Extended `AuditMockService` and `AuditApiHandler` only; no parallel report module or Agent Server/MCP route was added. |
+| 2026-04-25 | `rg -n "AuditLog|audit log|audit_log|audit-logs|auditLogs|report.*content|reports/.*/content|artifact.*content|artifact-export|sensitive export|export" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Report/artifact content routes were draft and no `AuditLog` schema or audit-log query existed. Extended `libs/audit-common`, `AuditMockService`, and `AuditApiHandler`; no parallel content, artifact, report, Agent Server, or MCP module was added. |
+| 2026-04-25 | `find apps libs docs -maxdepth 5 \( -iname '*audit*log*' -o -iname '*content*' -o -iname '*report*' -o -iname '*artifact*' \) -print | sort` | Only prior report/artifact plan docs and unrelated checkpoint conformance report helper were found; no existing product audit-log/content implementation existed. |
+| 2026-04-25 | `rg -n "get_report\(|create_report\(|get_artifact\(|list_events\(|AuditMockService|AuditApiHandler|GET /api/reports|GET /api/artifacts/.*/content" apps/audit-api libs/audit-common docs/blueprints -S` | Existing owner files were `AuditMockService` and `AuditApiHandler`; extended those files for report content and audit logs. |
