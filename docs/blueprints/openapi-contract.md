@@ -1,0 +1,450 @@
+# 二进制审计平台 OpenAPI Contract
+
+> Status: M0 draft. This document freezes the first business API surface for `apps/audit-api` and frontend mock development. Native LangGraph Agent Server endpoints remain behind the business API unless a debug-only route explicitly opts in.
+
+## 1. Contract Principles
+
+- Business APIs own tenant isolation, RBAC, audit logs, artifact authorization, and dangerous-action approval.
+- LangGraph `/assistants`, `/threads`, `/runs`, and `/mcp` capabilities are integration targets, not directly exposed product APIs.
+- Every high-risk action must create an `ApprovalRequest` and must be resumable through LangGraph interrupt semantics.
+- Every high-confidence or high-severity `Finding` must reference at least one evidence `ArtifactRef`.
+- Large logs, files, PCAPs, decompiler projects, and reports are stored as artifacts; events carry references, not bulk payloads.
+
+## 2. Resource Model
+
+### 2.1 Common Enums
+
+```yaml
+Classification: [public, internal, confidential, restricted]
+SampleFormat: [ELF, PE, MachO, APK, Firmware, Archive, Unknown]
+Scenario: [ctf, risk, malware, firmware, code-audit, mobile]
+AnalysisStatus: [queued, running, interrupted, succeeded, failed, cancelled]
+RunStatus: [queued, running, interrupted, succeeded, failed, cancelled]
+Severity: [info, low, medium, high, critical]
+FindingStatus: [draft, needs-review, confirmed, false-positive, accepted-risk, fixed]
+ApprovalStatus: [pending, approved, rejected, expired, cancelled]
+ToolExecutionStatus: [queued, running, succeeded, failed, timed-out, cancelled, blocked]
+NetworkPolicy: [none, allowlist, unrestricted]
+SimulationMode: [skip, component, qemu-system, emba]
+```
+
+### 2.2 Project
+
+```yaml
+Project:
+  id: string
+  tenantId: string
+  name: string
+  classification: Classification
+  createdAt: string
+  updatedAt: string
+```
+
+### 2.3 Sample
+
+```yaml
+Sample:
+  id: string
+  projectId: string
+  filename: string
+  sha256: string
+  size: integer
+  format: SampleFormat
+  arch: string | null
+  mimeType: string | null
+  magic: string | null
+  uploadedAt: string
+  artifactId: string
+```
+
+### 2.4 AuditPolicy
+
+```yaml
+AuditPolicy:
+  allowDynamicExecution: boolean
+  allowNetwork: boolean
+  networkPolicy: NetworkPolicy
+  networkAllowlist: string[]
+  allowExploitVerification: boolean
+  requireApprovalForDynamic: boolean
+  requireApprovalForNetwork: boolean
+  requireApprovalForExploit: boolean
+  maxToolRuntimeSeconds: integer
+  maxAgentRuntimeSeconds: integer
+  maxCpuCores: number
+  maxMemoryMb: integer
+  secretRedaction: boolean
+```
+
+### 2.5 Analysis
+
+```yaml
+Analysis:
+  id: string
+  projectId: string
+  sampleIds: string[]
+  scenario: Scenario
+  status: AnalysisStatus
+  policy: AuditPolicy
+  langgraphThreadId: string
+  langgraphRunId: string | null
+  createdAt: string
+  updatedAt: string
+```
+
+### 2.6 ArtifactRef
+
+```yaml
+ArtifactRef:
+  id: string
+  analysisId: string
+  projectId: string
+  type: string
+  name: string
+  mediaType: string
+  size: integer
+  sha256: string | null
+  uri: string
+  producer:
+    agent: string | null
+    node: string | null
+    toolExecutionId: string | null
+  metadata: object
+  createdAt: string
+```
+
+Initial artifact types:
+
+```text
+sample.original
+sample.extracted
+static.objdump
+static.readelf
+static.nm
+static.strings
+static.ghidra.project
+static.ghidra.decompile
+static.idat.export
+static.jadx.project
+static.joern.cpg
+firmware.binwalk.tree
+firmware.unblob.tree
+firmware.emba.report
+firmware.rootfs
+firmware.qemu.snapshot
+dynamic.pcap
+dynamic.http_archive
+dynamic.command_output
+vuln.finding_evidence
+report.markdown
+report.html
+report.pdf
+```
+
+### 2.7 Finding
+
+```yaml
+Finding:
+  id: string
+  analysisId: string
+  projectId: string
+  title: string
+  description: string
+  severity: Severity
+  confidence: number
+  status: FindingStatus
+  cwe: string | null
+  cve: string | null
+  affectedComponent: string | null
+  evidenceArtifactIds: string[]
+  verification:
+    status: pending | approved | blocked | verified | failed | skipped
+    approvalId: string | null
+    notes: string | null
+  createdAt: string
+  updatedAt: string
+```
+
+### 2.8 ToolExecution
+
+```yaml
+ToolExecution:
+  id: string
+  analysisId: string
+  projectId: string
+  tool: string
+  adapter: string
+  status: ToolExecutionStatus
+  inputArtifactIds: string[]
+  outputArtifactIds: string[]
+  sanitizedArgs: object
+  approvalId: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  exitCode: integer | null
+  limits:
+    wallTimeSeconds: integer
+    cpuCores: number
+    memoryMb: integer
+    diskMb: integer
+    networkPolicy: NetworkPolicy
+  error: string | null
+```
+
+### 2.9 ApprovalRequest
+
+```yaml
+ApprovalRequest:
+  id: string
+  analysisId: string
+  projectId: string
+  interruptId: string
+  action: dynamic-execution | network-enable | exploit-verification | firmware-emulation | artifact-export
+  status: ApprovalStatus
+  requestedByAgent: string
+  reason: string
+  riskSummary: string
+  proposedParameters: object
+  createdAt: string
+  decidedAt: string | null
+  decidedBy: string | null
+  decisionReason: string | null
+```
+
+## 3. API Endpoints
+
+### 3.1 Projects
+
+```http
+POST /api/projects
+GET /api/projects
+GET /api/projects/{projectId}
+```
+
+`POST /api/projects` request:
+
+```json
+{
+  "name": "router-firmware-audit",
+  "classification": "confidential"
+}
+```
+
+### 3.2 Samples
+
+```http
+POST /api/samples:upload
+GET /api/samples/{sampleId}
+```
+
+`POST /api/samples:upload` accepts `multipart/form-data`:
+
+- `projectId`: string
+- `file`: binary
+- `sourceLabel`: optional string
+- `archivePassword`: optional string, stored only in secret-managed transient form
+
+Response includes `Sample` plus pre-identification metadata.
+
+### 3.3 Analyses and Runs
+
+```http
+POST /api/analyses
+GET /api/analyses/{analysisId}
+POST /api/analyses/{analysisId}/runs
+POST /api/analyses/{analysisId}/runs:resume
+GET /api/analyses/{analysisId}/events
+GET /api/analyses/{analysisId}/state
+POST /api/analyses/{analysisId}:cancel
+POST /api/analyses/{analysisId}:branch
+```
+
+`POST /api/analyses` request:
+
+```json
+{
+  "projectId": "proj_123",
+  "sampleIds": ["sample_123"],
+  "scenario": "firmware",
+  "depth": "standard",
+  "simulationMode": "component",
+  "policy": {
+    "allowDynamicExecution": false,
+    "allowNetwork": false,
+    "networkPolicy": "none",
+    "networkAllowlist": [],
+    "allowExploitVerification": false,
+    "requireApprovalForDynamic": true,
+    "requireApprovalForNetwork": true,
+    "requireApprovalForExploit": true,
+    "maxToolRuntimeSeconds": 1800,
+    "maxAgentRuntimeSeconds": 600,
+    "maxCpuCores": 2,
+    "maxMemoryMb": 4096,
+    "secretRedaction": true
+  }
+}
+```
+
+`GET /api/analyses/{analysisId}/events` is an SSE endpoint. It supports:
+
+- `Last-Event-ID` header for replay.
+- `?agent=` filter.
+- `?node=` filter.
+- `?severity=` filter for finding events.
+- `?afterSequence=` filter for explicit replay.
+
+### 3.4 Interrupts and Approvals
+
+```http
+GET /api/analyses/{analysisId}/interrupts
+POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve
+POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject
+```
+
+Approval request body:
+
+```json
+{
+  "decisionReason": "Approved for isolated QEMU component emulation with no external network.",
+  "parameterOverrides": {
+    "networkPolicy": "none",
+    "maxToolRuntimeSeconds": 900
+  }
+}
+```
+
+Mock implementation note: the in-memory API currently returns a deterministic pending `firmware-emulation` `ApprovalRequest` for each created analysis. Approve/reject routes update that request and append `approval.approved` or `approval.rejected` SSE events, but do not yet resume a real LangGraph interrupt.
+
+`GET /api/analyses/{analysisId}/state` mock response returns the latest public camelCase projection of the in-memory `AuditAgentState` created from `apps/audit-agents.create_initial_state`. The snapshot currently includes `analysis`, `artifacts`, `findings`, `toolExecutions`, `approvalRequests`, and `events`.
+
+`POST /api/analyses/{analysisId}/runs` mock response returns the updated `Analysis`. It assigns a deterministic mock `langgraphRunId`, invokes the supervisor skeleton, emits `run.started`, `agent.started`, and `run.interrupted`, and keeps dangerous execution blocked behind the existing approval request. It does not call Agent Server or execute tools.
+
+`POST /api/analyses/{analysisId}/runs:resume` mock response returns the updated `Analysis`. It requires an existing mock run and an approved `firmware-emulation` approval, emits `run.resumed` and `run.succeeded`, and completes the mock run without calling Agent Server, LangGraph `Command(resume=...)`, MCP, sandbox workers, or dangerous tools.
+
+Reject request body:
+
+```json
+{
+  "decisionReason": "Exploit verification is outside the current authorization scope."
+}
+```
+
+### 3.5 Tool Executions
+
+```http
+GET /api/tool-executions/{toolExecutionId}
+POST /api/tool-executions/{toolExecutionId}:cancel
+```
+
+Tool execution creation is internal to agents/workers. User-facing clients can view and cancel authorized executions only.
+
+### 3.6 Artifacts
+
+```http
+GET /api/artifacts/{artifactId}
+GET /api/artifacts/{artifactId}/content
+```
+
+P10 mock status: `GET /api/artifacts/{artifactId}` is implemented for in-memory metadata only. `GET /api/artifacts/{artifactId}/content` remains draft until object storage and artifact authorization are present.
+
+Artifact access must validate tenant, project, analysis, and user permission. Downloading original samples, PCAPs, decompiler projects, reports, or credential-like artifacts must create an audit log entry.
+
+### 3.7 Findings
+
+```http
+GET /api/findings?analysisId={analysisId}
+PATCH /api/findings/{findingId}
+```
+
+P10 mock status: `GET /api/findings?analysisId={analysisId}` and `PATCH /api/findings/{findingId}` are implemented against in-memory findings. Patching currently supports `status`, `severity`, and `description`, emits `finding.updated`, and synchronizes the mock state snapshot.
+
+`PATCH /api/findings/{findingId}` request:
+
+```json
+{
+  "status": "confirmed",
+  "severity": "high",
+  "analystNote": "Confirmed via static evidence. Dynamic verification intentionally skipped."
+}
+```
+
+### 3.8 Reports
+
+```http
+POST /api/reports
+GET /api/reports/{reportId}
+GET /api/reports/{reportId}/content
+```
+
+`POST /api/reports` request:
+
+```json
+{
+  "analysisId": "analysis_123",
+  "format": "markdown",
+  "includeUnverifiedFindings": true,
+  "redactionProfile": "default"
+}
+```
+
+P11 mock status: `POST /api/reports` and `GET /api/reports/{reportId}` are implemented as in-memory report artifacts. Supported mock formats are `markdown`, `html`, and `pdf`; the response is an `ArtifactRef` with `type` set to `report.markdown`, `report.html`, or `report.pdf`. The mock emits `artifact.created` and updates `GET /api/analyses/{analysisId}/state`. `GET /api/reports/{reportId}/content` remains draft until report content authorization and audit logging are defined.
+
+### 3.9 Mock API Implementation Notes
+
+The first `apps/audit-api` implementation is an in-memory mock for parallel frontend and agent development:
+
+- Public service methods accept and return camelCase dictionaries matching this contract.
+- Internal resources are stored with Python snake_case keys matching `libs/audit-common`.
+- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, and `GET /api/reports/{reportId}` have mock HTTP handler coverage.
+- Mock `POST /api/samples:upload` accepts JSON sample metadata for frontend and agent parallel development; production multipart upload parsing remains deferred.
+- SSE formatting is represented by `format_sse_event`; authentication, RBAC, persistent storage, native Agent Server run creation, and MCP exposure are intentionally deferred.
+
+## 4. Error Envelope
+
+All non-2xx responses use this shape:
+
+```json
+{
+  "error": {
+    "code": "approval_required",
+    "message": "Dynamic execution requires human approval.",
+    "requestId": "req_123",
+    "details": {
+      "approvalId": "approval_123"
+    }
+  }
+}
+```
+
+Initial error codes:
+
+```text
+bad_request
+unauthorized
+forbidden
+not_found
+conflict
+approval_required
+policy_denied
+tool_unavailable
+quota_exceeded
+validation_failed
+internal_error
+```
+
+## 5. LangGraph Mapping
+
+- `POST /api/analyses` creates business metadata and prepares a LangGraph thread.
+- `POST /api/analyses/{analysisId}/runs` starts a LangGraph run for the selected assistant/graph.
+- `GET /api/analyses/{analysisId}/events` merges LangGraph stream events, worker events, artifact events, approval events, and finding events into the SSE contract.
+- Approval endpoints resume the interrupted run only after policy validation and audit logging.
+- Branching copies the selected state snapshot into a new business `Analysis` and a new LangGraph thread/run lineage.
+- `apps/audit-agents` owns the first Python `AuditAgentState` shape and maps `Analysis`, `ApprovalRequest`, and `AuditEvent` records from `libs/audit-common` into graph node updates.
+- Until sandbox workers exist, dangerous-action graph nodes create `ApprovalRequest` placeholders and `approval.requested` events instead of launching tools.
+
+## 6. Open Questions
+
+- Decide whether `depth` should be an enum in `Analysis` or a profile resolved server-side.
+- Decide whether report generation is an analysis sub-run or a separate report workflow.
+- Decide storage URI format after object storage implementation is selected.

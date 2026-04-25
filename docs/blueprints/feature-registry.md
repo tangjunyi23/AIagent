@@ -1,0 +1,132 @@
+# 二进制审计平台 Feature Registry
+
+> Purpose: prevent duplicate development by recording implemented or frozen platform features, entry files, schema names, API names, and event names.
+
+## 1. Registry Rules
+
+- Before adding a module, route, schema, adapter, event, or artifact type, search this registry and the repository with `rg`.
+- Prefer extending an existing registered feature over creating a parallel module.
+- Every new implementation must update this file with entry path, owner layer, and public names.
+- Draft contracts count as reserved names even before implementation exists.
+
+## 2. Reserved Product Directories
+
+| Layer | Path | Status | Purpose |
+| --- | --- | --- | --- |
+| Web | `apps/audit-web/` | planned | React/Next.js frontend workbench |
+| API | `apps/audit-api/` | implemented mock | Business API, RBAC, tenants, samples, analyses, artifacts, findings, reports |
+| Agents | `apps/audit-agents/` | implemented skeleton | LangGraph state, graphs, subgraphs, supervisor, routers, prompts |
+| Workers | `apps/audit-workers/` | planned | Tool execution, sandbox adapters, MCP tool servers, normalizers |
+| Common | `libs/audit-common/` | implemented | Shared schemas, event types, artifact types, policy models |
+
+## 3. Frozen Contract Documents
+
+| Feature | Entry File | Status | Public Names |
+| --- | --- | --- | --- |
+| Business API draft | `docs/blueprints/openapi-contract.md` | draft | `Project`, `Sample`, `Analysis`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditPolicy` |
+| SSE event draft | `docs/blueprints/event-schema.md` | draft | `AuditEvent`, `AuditEventType`, `RunPayload`, `StateSnapshotPayload`, `AgentPayload`, `ToolPayload`, `FindingPayload`, `ApprovalPayload` |
+| Progress log | `docs/blueprints/implementation-progress.md` | active | M0 documentation tracking |
+| Decision log | `docs/blueprints/decision-log.md` | active | architecture decision records |
+| Shared schema package | `libs/audit-common/audit_common/schemas.py` | implemented | `Project`, `Sample`, `Analysis`, `AuditPolicy`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditEvent`, `ErrorEnvelope` |
+| Shared schema exports | `libs/audit-common/audit_common/__init__.py` | implemented | package-level imports for common schema names and enum value tuples |
+| Shared schema tests | `libs/audit-common/tests/test_schemas.py` | implemented | contract shape checks for artifacts, findings, tool limits, events, and dangerous approvals |
+| Audit agent state | `apps/audit-agents/audit_agents/state.py` | implemented skeleton | `AuditAgentState`, `create_initial_state` |
+| Audit supervisor graph | `apps/audit-agents/audit_agents/supervisor.py` | implemented skeleton | `SupervisorGraphSpec`, `build_supervisor_graph`, `triage_sample`, idempotent `request_dangerous_action_approval` |
+| Audit agent tests | `apps/audit-agents/tests/` | implemented skeleton | state initialization, supervisor node updates, graph build smoke test |
+| Audit API casing | `apps/audit-api/audit_api/casing.py` | implemented mock | `to_camel`, `to_snake` |
+| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `list_findings`, `patch_finding`, `start_run`, `resume_run`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` |
+| Audit API server helpers | `apps/audit-api/audit_api/server.py` | implemented mock resources | `format_sse_event`, `AuditApiHandler`, `AuditApiHandler.with_service`, `do_GET`, `do_PATCH`, `do_POST` |
+| Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, artifact/finding query/update, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
+
+## 4. Reserved API Routes
+
+| Route | Status | Notes |
+| --- | --- | --- |
+| `POST /api/projects` | mock implemented | Create project with classification |
+| `GET /api/projects` | mock implemented | List visible projects |
+| `GET /api/projects/{projectId}` | mock implemented | Fetch project metadata |
+| `POST /api/samples:upload` | mock implemented | Upload isolated sample and produce initial artifact |
+| `GET /api/samples/{sampleId}` | mock implemented | Fetch sample metadata |
+| `POST /api/analyses` | mock implemented | Create business analysis and prepare LangGraph thread |
+| `GET /api/analyses/{analysisId}` | mock implemented | Fetch analysis metadata |
+| `POST /api/analyses/{analysisId}/runs` | mock implemented | Start mock supervisor run without dangerous tool execution |
+| `POST /api/analyses/{analysisId}/runs:resume` | mock implemented | Resume approved mock run and complete without dangerous tool execution |
+| `GET /api/analyses/{analysisId}/events` | mock implemented | SSE stream using `AuditEvent` |
+| `GET /api/analyses/{analysisId}/state` | mock implemented | Latest mock `AuditAgentState` snapshot |
+| `POST /api/analyses/{analysisId}:cancel` | draft | Cancel analysis/run |
+| `POST /api/analyses/{analysisId}:branch` | draft | Branch from checkpoint/state snapshot |
+| `GET /api/analyses/{analysisId}/interrupts` | mock implemented | List pending approval gates |
+| `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve` | mock implemented | Approve mock interrupt and append `approval.approved` event |
+| `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject` | mock implemented | Reject mock interrupt and append `approval.rejected` event |
+| `GET /api/tool-executions/{toolExecutionId}` | draft | Fetch tool execution metadata |
+| `POST /api/tool-executions/{toolExecutionId}:cancel` | draft | Cancel authorized tool execution |
+| `GET /api/artifacts/{artifactId}` | mock implemented | Fetch mock artifact metadata |
+| `GET /api/artifacts/{artifactId}/content` | draft | Download or preview artifact content |
+| `GET /api/findings` | mock implemented | Query mock findings by `analysisId` |
+| `PATCH /api/findings/{findingId}` | mock implemented | Analyst status/severity updates and `finding.updated` event |
+| `POST /api/reports` | mock implemented | Generate mock report artifact metadata |
+| `GET /api/reports/{reportId}` | mock implemented | Fetch mock report artifact metadata |
+| `GET /api/reports/{reportId}/content` | draft | Download or preview report content |
+
+## 5. Reserved Event Types
+
+| Event Type | Status | Producer |
+| --- | --- | --- |
+| `run.queued` | draft | API / LangGraph bridge |
+| `run.started` | mock implemented | API / LangGraph bridge |
+| `run.interrupted` | mock implemented | LangGraph interrupt bridge |
+| `run.resumed` | draft | API approval resume bridge |
+| `run.succeeded` | draft | LangGraph bridge |
+| `run.failed` | draft | LangGraph bridge |
+| `run.cancelled` | draft | API / LangGraph bridge |
+| `state.snapshot` | draft | LangGraph bridge |
+| `agent.started` | mock implemented | Agent graph nodes |
+| `agent.heartbeat` | draft | Agent graph nodes / watchdog |
+| `agent.completed` | draft | Agent graph nodes |
+| `agent.failed` | draft | Agent graph nodes / watchdog |
+| `token.delta` | draft | LLM streaming bridge |
+| `tool.queued` | draft | Tool orchestrator |
+| `tool.started` | draft | Tool worker |
+| `tool.output_chunk` | draft | Tool worker |
+| `tool.completed` | draft | Tool worker |
+| `tool.failed` | draft | Tool worker |
+| `tool.cancelled` | draft | Tool orchestrator |
+| `artifact.created` | mock implemented | Artifact service / worker normalizer |
+| `finding.created` | draft | Agent verifier / finding service |
+| `finding.updated` | mock implemented | Finding service / analyst action |
+| `approval.requested` | mock implemented | Policy engine / interrupt bridge |
+| `approval.approved` | mock implemented | Approval service |
+| `approval.rejected` | mock implemented | Approval service |
+| `policy.denied` | draft | Policy engine |
+| `error.created` | draft | API / agent / worker bridge |
+
+## 6. Reserved Artifact Types
+
+| Prefix | Status | Examples |
+| --- | --- | --- |
+| `sample.*` | draft | `sample.original`, `sample.extracted` |
+| `static.*` | draft | `static.objdump`, `static.readelf`, `static.ghidra.decompile`, `static.jadx.project` |
+| `firmware.*` | draft | `firmware.binwalk.tree`, `firmware.unblob.tree`, `firmware.rootfs`, `firmware.emba.report` |
+| `dynamic.*` | draft | `dynamic.pcap`, `dynamic.http_archive`, `dynamic.command_output` |
+| `vuln.*` | draft | `vuln.finding_evidence` |
+| `report.*` | draft | `report.markdown`, `report.html`, `report.pdf` |
+
+## 7. Duplicate Check Log
+
+| Date | Search | Result |
+| --- | --- | --- |
+| 2026-04-24 | `find apps libs docs -maxdepth 3 -iname '*audit*'` | Only audit blueprint files existed; no product modules found. |
+| 2026-04-24 | `rg "AuditState|ToolExecution|ArtifactRef|FindingDraft|ApprovalRequest|/api/analyses|/api/samples:upload" docs apps libs` | Only blueprint references and LangGraph/CLI MCP support found; no equivalent audit implementation found. |
+| 2026-04-24 | `find apps libs docs -maxdepth 4 \( -iname '*audit*' -o -iname '*artifact*' -o -iname '*finding*' -o -iname '*tool*execution*' \)` | No existing audit schema package found before creating `libs/audit-common`. |
+| 2026-04-24 | `rg "class .*Artifact|ArtifactRef|FindingDraft|class .*Finding|ToolExecution|ApprovalRequest|AuditPolicy|AuditEvent|AnalysisStatus|SampleFormat" libs apps docs -S` | Only blueprint/registry references found before implementation; new work extends the reserved contract rather than duplicating an implementation. |
+
+| 2026-04-24 | `find apps libs docs -maxdepth 4 \( -type f -o -type d \) | rg 'audit-api|api|server|sample|analysis|artifact|finding|approval|openapi'` | No existing `apps/audit-api`; only contracts, docs, and previous shared schemas/agent skeleton existed. |
+| 2026-04-24 | `rg -n "audit-api|FastAPI|http.server|POST /api|GET /api|camelCase|snake_case|serialize|deserialize|Analysis|Project|Sample|ApprovalRequest|SSE|events" apps libs docs -S` | No existing API implementation found; new work extends the reserved `apps/audit-api` path. |
+| 2026-04-24 | `rg -n "AuditApiHandler|do_POST|create_analysis|list_approv|approve|reject|ApprovalRequest|approval\.requested|create_initial_state|AuditAgentState|build_supervisor_graph|StateGraph|interrupt|Command|thread_id|run_id" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing API handler shell and mock service found; extended `apps/audit-api/audit_api/server.py` instead of creating a parallel API module. |
+| 2026-04-24 | `rg -n "ApprovalRequest|approval\.requested|approval\.approved|approval\.rejected|interrupts|approve|reject|decided_at|decision_reason|list_approv|request_dangerous_action_approval|firmware-emulation" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Approval schema, event names, agent placeholder, and draft routes existed; API approval list/approve/reject flows did not. Extended existing mock service and handler. |
+| 2026-04-24 | `rg -n "create_initial_state|AuditAgentState|agent_state|state snapshot|state\.snapshot|get_state|/state|langgraph_thread_id|thread_id|create_analysis|AuditMockService|build_supervisor_graph|StateGraph|checkpoint|persistence|Agent Server|runs" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing `audit-agents` state constructor found; API state storage/route did not exist. Extended existing mock service/handler and reused `create_initial_state`. |
+| 2026-04-24 | `rg -n "POST /api/analyses/.*/runs|/runs|start_run|create_run|run\.started|run\.interrupted|run_id|langgraph_run_id|build_supervisor_graph|SupervisorGraphSpec|triage_sample|request_dangerous_action_approval|agent\.started|approval\.requested|ToolExecution|sandbox|dangerous" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing supervisor skeleton found and run route was draft. Extended mock service/handler and made approval gate idempotent; no sandbox/tool execution added. |
+| 2026-04-24 | `rg -n "GET /api/projects/|GET /api/samples/|GET /api/analyses/|get_project|get_sample|get_analysis|list_projects|AuditMockService|AuditApiHandler|do_GET" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing mock service and handler owned resource APIs; `get_analysis` already existed, while project/sample detail and HTTP detail dispatch were missing. Extended existing files only. |
+| 2026-04-24 | `rg -n "resume|run\.resumed|start_run|decide_approval|approved|ApprovalRequest|interrupt.*resume|Command\(resume|POST /api/analyses/.*/runs|:resume|run resume|safe resume|dangerous" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing approval decision and mock run start flows found; no mock resume service or route existed. Extended `AuditMockService`/`AuditApiHandler` only and did not add Agent Server or LangGraph `Command(resume=...)` integration. |
+| 2026-04-24 | `rg -n "artifacts|findings|reports|runs:resume|approvals|state|events|do_POST|do_GET|resume_run|list_artifacts|list_findings|get_artifact|get_finding" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing schemas and draft routes found; no artifact/finding query/update implementation existed. Extended `AuditMockService`/`AuditApiHandler` only. |
+| 2026-04-25 | `rg -n "Report|reports|POST /api/reports|GET /api/reports|report\." docs/blueprints/openapi-contract.md docs/blueprints/feature-registry.md docs/blueprints/binary-audit-platform-*.md apps libs/audit-common -S` | Report artifact types and draft routes existed, but no mock report service or HTTP dispatch existed. Extended `AuditMockService` and `AuditApiHandler` only; no parallel report module or Agent Server/MCP route was added. |

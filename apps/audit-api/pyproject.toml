@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "audit-api"
+version = "0.0.1"
+description = "Mock business API layer for the LangGraph binary audit platform."
+authors = []
+requires-python = ">=3.10"
+readme = "README.md"
+license = "MIT"
+license-files = []
+dependencies = ["audit-agents", "audit-common"]
+
+[tool.hatch.build.targets.wheel]
+include = ["audit_api"]
+
+[tool.ruff]
+lint.select = ["E", "F", "UP", "B", "I"]
+lint.ignore = ["E501", "B008"]
+target-version = "py310"
+
+[tool.mypy]
+disallow_untyped_defs = "True"
+explicit_package_bases = "True"
+warn_no_return = "False"
+warn_unused_ignores = "True"
+warn_redundant_casts = "True"
+allow_redefinition = "True"
+disable_error_code = "typeddict-item, return-value"
