@@ -80,6 +80,7 @@ apps/audit-api/
       sample_intake.py
       policy_engine.py
       event_stream.py
+    repository.py
     db/
       models.py
       migrations/

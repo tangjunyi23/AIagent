@@ -24,32 +24,27 @@ from audit_common import (
 from audit_agents import AuditAgentState, build_supervisor_graph, create_initial_state
 
 from audit_api.casing import to_camel, to_snake
+from audit_api.repository import AuditRepository, InMemoryAuditRepository
 
 PublicResource = dict[str, Any]
 
 
 class AuditMockService:
-    def __init__(self) -> None:
-        self._projects: dict[str, Project] = {}
-        self._samples: dict[str, Sample] = {}
-        self._analyses: dict[str, Analysis] = {}
-        self._artifacts: dict[str, ArtifactRef] = {}
-        self._findings: dict[str, Finding] = {}
-        self._audit_logs: list[AuditLog] = []
-        self._agent_states: dict[str, AuditAgentState] = {}
-        self._approvals: dict[str, list[ApprovalRequest]] = {}
-        self._events: dict[str, list[AuditEvent]] = {}
-        self._next_project = 1
-        self._next_sample = 1
-        self._next_analysis = 1
-        self._next_run = 1
-        self._next_event = 1
-        self._next_audit_log = 1
+    def __init__(self, repository: AuditRepository | None = None) -> None:
+        self.repository = repository or InMemoryAuditRepository()
+        self._projects = self.repository.projects
+        self._samples = self.repository.samples
+        self._analyses = self.repository.analyses
+        self._artifacts = self.repository.artifacts
+        self._findings = self.repository.findings
+        self._audit_logs = self.repository.audit_logs
+        self._agent_states = self.repository.agent_states
+        self._approvals = self.repository.approvals
+        self._events = self.repository.events
 
     def create_project(self, payload: PublicResource) -> PublicResource:
         body = cast(dict[str, Any], to_snake(payload))
-        project_id = self._allocate_id("project", self._next_project)
-        self._next_project += 1
+        project_id = self._allocate_id("project")
         project: Project = {
             "id": project_id,
             "tenant_id": str(body.get("tenant_id", "tenant_mock")),
@@ -72,8 +67,7 @@ class AuditMockService:
         body = cast(dict[str, Any], to_snake(payload))
         project_id = str(body["project_id"])
         self._require_project(project_id)
-        sample_id = self._allocate_id("sample", self._next_sample)
-        self._next_sample += 1
+        sample_id = self._allocate_id("sample")
         sample: Sample = {
             "id": sample_id,
             "project_id": project_id,
@@ -85,7 +79,7 @@ class AuditMockService:
             "mime_type": body.get("mime_type"),
             "magic": body.get("magic"),
             "uploaded_at": self._timestamp(),
-            "artifact_id": self._allocate_id("artifact", self._next_sample),
+            "artifact_id": f"artifact_{int(sample_id.rsplit('_', 1)[1]) + 1}",
         }
         self._samples[sample_id] = sample
         return cast(PublicResource, to_camel(sample))
@@ -101,9 +95,8 @@ class AuditMockService:
         sample_ids = [str(sample_id) for sample_id in body["sample_ids"]]
         for sample_id in sample_ids:
             self._require_sample(sample_id)
-        analysis_id = self._allocate_id("analysis", self._next_analysis)
-        thread_id = self._allocate_id("thread", self._next_analysis)
-        self._next_analysis += 1
+        analysis_id = self._allocate_id("analysis")
+        thread_id = self._allocate_id("thread")
         policy = self._policy_from_body(cast(dict[str, Any], body.get("policy", {})))
         analysis: Analysis = {
             "id": analysis_id,
@@ -398,8 +391,7 @@ class AuditMockService:
         self._require_analysis(analysis_id)
         analysis = self._analyses[analysis_id]
         if analysis["langgraph_run_id"] is None:
-            analysis["langgraph_run_id"] = self._allocate_id("run", self._next_run)
-            self._next_run += 1
+            analysis["langgraph_run_id"] = self._allocate_id("run")
         analysis["status"] = "running"
         self._sync_agent_state(analysis_id)
         self._events[analysis_id].append(self._create_run_event(analysis, "run.started"))
@@ -457,8 +449,7 @@ class AuditMockService:
         return cast(PublicResource, to_camel(approval))
 
     def _create_run_queued_event(self, analysis: Analysis) -> AuditEvent:
-        event_id = self._allocate_id("evt", self._next_event)
-        self._next_event += 1
+        event_id = self._allocate_id("evt")
         return {
             "id": event_id,
             "sequence": 1,
@@ -474,8 +465,7 @@ class AuditMockService:
         }
 
     def _create_run_event(self, analysis: Analysis, event_type: str) -> AuditEvent:
-        event_id = self._allocate_id("evt", self._next_event)
-        self._next_event += 1
+        event_id = self._allocate_id("evt")
         return {
             "id": event_id,
             "sequence": len(self._events.get(analysis["id"], [])) + 1,
@@ -541,8 +531,7 @@ class AuditMockService:
         }
 
     def _create_finding_event(self, finding: Finding) -> AuditEvent:
-        event_id = self._allocate_id("evt", self._next_event)
-        self._next_event += 1
+        event_id = self._allocate_id("evt")
         return {
             "id": event_id,
             "sequence": len(self._events.get(finding["analysis_id"], [])) + 1,
@@ -566,8 +555,7 @@ class AuditMockService:
 
     def _create_artifact_event(self, artifact: ArtifactRef) -> AuditEvent:
         analysis = self._analyses[artifact["analysis_id"]]
-        event_id = self._allocate_id("evt", self._next_event)
-        self._next_event += 1
+        event_id = self._allocate_id("evt")
         return {
             "id": event_id,
             "sequence": len(self._events.get(artifact["analysis_id"], [])) + 1,
@@ -603,7 +591,7 @@ class AuditMockService:
     ) -> AuditLog:
         project = self._projects[analysis["project_id"]]
         log: AuditLog = {
-            "id": self._allocate_id("audit", self._next_audit_log),
+            "id": self._allocate_id("audit"),
             "tenant_id": project["tenant_id"],
             "project_id": analysis["project_id"],
             "analysis_id": analysis["id"],
@@ -616,7 +604,6 @@ class AuditMockService:
             "metadata": metadata,
             "created_at": self._timestamp(),
         }
-        self._next_audit_log += 1
         self._audit_logs.append(log)
         return log
 
@@ -678,8 +665,7 @@ class AuditMockService:
         approval: ApprovalRequest,
         event_type: str,
     ) -> AuditEvent:
-        event_id = self._allocate_id("evt", self._next_event)
-        self._next_event += 1
+        event_id = self._allocate_id("evt")
         return {
             "id": event_id,
             "sequence": len(self._events.get(analysis["id"], [])) + 1,
@@ -873,8 +859,7 @@ class AuditMockService:
         event: AuditEvent,
     ) -> AuditEvent:
         normalized = cast(AuditEvent, dict(event))
-        normalized["id"] = self._allocate_id("evt", self._next_event)
-        self._next_event += 1
+        normalized["id"] = self._allocate_id("evt")
         normalized["sequence"] = len(self._events[analysis_id]) + 1
         normalized["created_at"] = normalized["created_at"] or self._timestamp()
         normalized["run_id"] = self._analyses[analysis_id]["langgraph_run_id"] or ""
@@ -908,9 +893,8 @@ class AuditMockService:
             for approval in self._approvals[analysis_id]
         )
 
-    @staticmethod
-    def _allocate_id(prefix: str, value: int) -> str:
-        return f"{prefix}_{value}"
+    def _allocate_id(self, prefix: str) -> str:
+        return self.repository.allocate_id(prefix)
 
     @staticmethod
     def _timestamp() -> str:

@@ -234,3 +234,16 @@
   - https://docs.langchain.com/oss/python/langgraph/interrupts
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/persistence
+
+## 2026-04-25: Mock API Storage Has A Repository Boundary
+
+- Decision: P17 introduces `AuditRepository` and `InMemoryAuditRepository` in `apps/audit-api/audit_api/repository.py`, and `AuditMockService` now accepts an injected repository.
+- Reason: API behavior, SSE events, approvals, artifacts, findings, reports, audit logs, and state snapshots need a stable storage boundary before replacing in-memory data with persistence and object storage.
+- Boundary: no database, migrations, RBAC, object storage, native Agent Server client, MCP route, LangGraph checkpointer, or public HTTP/SSE contract change is introduced.
+- Official docs: LangGraph persistence/checkpoints and Agent Server storage remain later integration targets; product records still flow through the business API authorization and audit boundary.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/langsmith/server-mcp
+  - https://docs.langchain.com/oss/python/langgraph/persistence
+  - https://docs.langchain.com/oss/python/langgraph/streaming

@@ -257,3 +257,4 @@ ErrorPayload:
 - LangGraph interrupts are normalized into `run.interrupted` plus `approval.requested` when the interruption represents a dangerous action gate.
 - Worker lifecycle updates are normalized into `tool.*` events.
 - Artifact and finding writes are normalized into `artifact.created` and `finding.*` events.
+- P17 repository note: `AuditMockService` now stores `AuditEvent` records through the injected `AuditRepository`; event names, payload schemas, ordering rules, SSE frames, and frontend mappings are unchanged.

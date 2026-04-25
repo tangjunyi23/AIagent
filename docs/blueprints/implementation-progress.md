@@ -2031,3 +2031,118 @@ Observed result:
 1. Add a persistence-facing repository interface for `AuditMockService` so future storage work can keep the public API contract stable.
 2. Replace in-memory audit logs, reports, artifacts, approvals, and finding queries with persistence/object storage once RBAC and tenant checks are implemented.
 3. Add approval decision audit log entries for `approval.approved` and `approval.rejected` before real interrupt resume integration.
+
+## 2026-04-25: P17 Audit API Repository Boundary
+
+### Scope
+
+- Added `apps/audit-api/audit_api/repository.py` with `AuditRepository` and `InMemoryAuditRepository`.
+- Changed `AuditMockService` to accept an injected repository and to store projects, samples, analyses, artifacts, findings, audit logs, agent states, approvals, and events through that boundary.
+- Moved mock ID allocation into the repository while preserving existing public IDs, HTTP responses, SSE event names, and state snapshots.
+- Added repository tests and kept the existing stdlib HTTP handler unchanged.
+- Did not add a real database, migrations, object storage, RBAC, LangGraph checkpointer, native Agent Server client, MCP route, or any new public API route.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_mock_service.py`
+- `apps/audit-api/tests/test_server.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+- `https://docs.langchain.com/langsmith/agent-server`
+- `https://docs.langchain.com/langsmith/server-mcp`
+
+Adopted conclusions:
+
+- Keep product `/api/*` as the authorization, RBAC, audit, redaction, and contract boundary.
+- Keep public `AuditEvent` SSE envelopes stable; repository extraction must not rename events or put bulk data into streams.
+- Treat LangGraph persistence/checkpoints, Agent Server runs, and MCP exposure as later integrations behind the product API.
+- Model approval, artifact, finding, audit log, and state records as structured resources before introducing durable storage.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "Repository|repository|store|storage|_projects|_samples|_analyses|_artifacts|_findings|_audit_logs|_agent_states|_approvals|_events|_next_project|_next_event|Persistence|checkpoint" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S
+find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*repository*' -o -iname '*storage*' -o -iname '*store*' -o -iname '*persistence*' \) -print | sort
+rg -n "class AuditMockService|def __init__|_next_|_allocate_id|_record_audit_log|list_audit_logs|request_artifact_export|create_analysis" apps/audit-api/audit_api/mock_service.py apps/audit-api/tests -S
+```
+
+Result:
+
+- No existing audit API repository/storage owner file existed.
+- `AuditMockService` was the existing owner for resources, counters, approvals, audit logs, state, and events.
+- P17 adds one repository file and injects it into `AuditMockService`; it does not create duplicate route, service, Agent Server, MCP, or worker modules.
+
+### TDD Evidence
+
+Red targeted test:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_repository -v
+```
+
+Observed result before implementation:
+
+- Failed with `ModuleNotFoundError: No module named 'audit_api.repository'`.
+
+Green targeted test:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_repository tests.test_mock_service -v
+```
+
+Observed result after implementation:
+
+- 28 targeted repository and mock service tests ran and passed.
+
+### Files Changed
+
+- Created `apps/audit-api/audit_api/repository.py`
+- Created `apps/audit-api/tests/test_repository.py`
+- Updated `apps/audit-api/audit_api/__init__.py`
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Validation
+
+Final validation commands:
+
+```bash
+cd apps/audit-api && make format && make lint && make test
+rg -n "P17|AuditRepository|InMemoryAuditRepository|repository boundary|repository.py|AuditMockService\(repository" docs/blueprints apps/audit-api -S
+rg -n '``[^`\n]+``' apps/audit-api docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md docs/blueprints/binary-audit-platform-backend-blueprint.md -S
+```
+
+Observed result:
+
+- `make format` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make lint` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make test` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest discover tests -v`; 54 API tests ran and passed.
+- P17 keyword search returned the new repository code, tests, OpenAPI note, event note, decision log, feature registry, backend blueprint, and progress log.
+- Inline Sphinx-style double-backtick search in touched code and blueprint paths returned no matches.
+
+### Next Recommended Tasks
+
+1. Add approval decision audit log entries for `approval.approved` and `approval.rejected` before real interrupt resume integration.
+2. Add a repository-backed branch/cancel mock API for `POST /api/analyses/{analysisId}:branch` or `POST /api/analyses/{analysisId}:cancel`.
+3. Replace in-memory repository internals with persistence/object storage adapters once RBAC and tenant checks are implemented.
