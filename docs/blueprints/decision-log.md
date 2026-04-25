@@ -259,3 +259,15 @@
   - https://docs.langchain.com/langsmith/agent-server
   - https://docs.langchain.com/oss/python/langgraph/interrupts
   - https://docs.langchain.com/oss/python/langgraph/persistence
+
+## 2026-04-25: Mock Analysis Cancel Is A Product Lifecycle Route
+
+- Decision: P19 implements `POST /api/analyses/{analysisId}:cancel` in the existing mock API service and handler, emitting `run.cancelled` and synchronizing state.
+- Reason: frontend run controls need a stable cancellation contract before real Agent Server run cancellation, queues, workers, and persistence exist.
+- Boundary: no branch API, worker cancellation, tool execution cancellation, Agent Server route call, MCP route, object storage action, or new event type is introduced.
+- Official docs: LangGraph streaming and persistence remain later integration inputs; product lifecycle routes continue to normalize state and events behind `/api/*`.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/persistence

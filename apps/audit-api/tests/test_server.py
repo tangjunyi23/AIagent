@@ -457,6 +457,17 @@ class AuditApiHandlerRouteTests(unittest.TestCase):
         self.assertIn("event: run.resumed\n", events)
         self.assertIn("event: run.succeeded\n", events)
 
+    def test_post_analysis_cancel_marks_analysis_cancelled(self) -> None:
+        self.create_firmware_analysis()
+        self.post_json("/api/analyses/analysis_1/runs", {})
+
+        status, payload = self.post_json("/api/analyses/analysis_1:cancel", {})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "cancelled")
+        _, _, events = self.get_text("/api/analyses/analysis_1/events")
+        self.assertIn("event: run.cancelled\n", events)
+
     def test_post_interrupt_approve_decides_approval(self) -> None:
         self.create_firmware_analysis()
 

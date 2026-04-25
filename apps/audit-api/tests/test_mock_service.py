@@ -505,6 +505,19 @@ class MockServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             service.resume_run(str(analysis["id"]))
 
+    def test_cancel_analysis_marks_cancelled_and_appends_event(self) -> None:
+        service, analysis = self.create_firmware_analysis()
+        service.start_run(str(analysis["id"]))
+
+        cancelled = service.cancel_analysis(str(analysis["id"]))
+
+        self.assertEqual(cancelled["status"], "cancelled")
+        events = service.list_events(str(analysis["id"]))
+        self.assertEqual(events[-1]["type"], "run.cancelled")
+        self.assertNotIn("tool.started", [event["type"] for event in events])
+        state = service.get_analysis_state(str(analysis["id"]))
+        self.assertEqual(state["analysis"]["status"], "cancelled")
+
 
 if __name__ == "__main__":
     unittest.main()

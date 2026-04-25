@@ -342,6 +342,8 @@ Mock implementation note: the in-memory API currently returns a deterministic pe
 
 `POST /api/analyses/{analysisId}/runs:resume` mock response returns the updated `Analysis`. It requires an existing mock run and an approved `firmware-emulation` approval, emits `run.resumed` and `run.succeeded`, and completes the mock run without calling Agent Server, LangGraph `Command(resume=...)`, MCP, sandbox workers, or dangerous tools.
 
+`POST /api/analyses/{analysisId}:cancel` mock response returns the updated `Analysis`. It marks queued, running, or interrupted mock analyses as `cancelled`, emits `run.cancelled`, synchronizes the state snapshot, and does not call Agent Server, MCP, sandbox workers, or dangerous tools.
+
 Reject request body:
 
 ```json
@@ -531,7 +533,7 @@ The first `apps/audit-api` implementation is an in-memory mock for parallel fron
 - Public service methods accept and return camelCase dictionaries matching this contract.
 - Internal resources are stored with Python snake_case keys matching `libs/audit-common`.
 - P17 mock status: `AuditMockService` stores resources through an injected `AuditRepository` boundary. The current implementation uses `InMemoryAuditRepository`; persistence, object storage, RBAC, Agent Server clients, MCP routes, and LangGraph checkpointer integration remain deferred.
-- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/artifacts/{artifactId}/content`, `POST /api/artifacts/{artifactId}:request-export`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage.
+- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `POST /api/analyses/{analysisId}:cancel`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/artifacts/{artifactId}/content`, `POST /api/artifacts/{artifactId}:request-export`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage.
 - Mock `POST /api/samples:upload` accepts JSON sample metadata for frontend and agent parallel development; production multipart upload parsing remains deferred.
 - SSE formatting is represented by `format_sse_event`; authentication, RBAC, persistent storage, native Agent Server run creation, and MCP exposure are intentionally deferred.
 

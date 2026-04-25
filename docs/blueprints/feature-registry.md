@@ -35,7 +35,7 @@
 | Audit agent tests | `apps/audit-agents/tests/` | implemented skeleton | state initialization, supervisor node updates, graph build smoke test |
 | Audit API casing | `apps/audit-api/audit_api/casing.py` | implemented mock | `to_camel`, `to_snake` |
 | Audit API repository boundary | `apps/audit-api/audit_api/repository.py` | implemented storage boundary | `AuditRepository`, `InMemoryAuditRepository`, `allocate_id` |
-| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `get_artifact_content`, `request_artifact_export`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` with approval decision audit logs |
+| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `get_artifact_content`, `request_artifact_export`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `cancel_analysis`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` with approval decision audit logs |
 | Audit API server helpers | `apps/audit-api/audit_api/server.py` | implemented mock resources | `format_sse_event`, `AuditApiHandler`, `AuditApiHandler.with_service`, `do_GET`, `do_PATCH`, `do_POST` |
 | Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, paginated finding query/update, redacted artifact/report content, audit-log query, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
 
@@ -54,7 +54,7 @@
 | `POST /api/analyses/{analysisId}/runs:resume` | mock implemented | Resume approved mock run and complete without dangerous tool execution |
 | `GET /api/analyses/{analysisId}/events` | mock implemented | SSE stream using `AuditEvent` |
 | `GET /api/analyses/{analysisId}/state` | mock implemented | Latest mock `AuditAgentState` snapshot |
-| `POST /api/analyses/{analysisId}:cancel` | draft | Cancel analysis/run |
+| `POST /api/analyses/{analysisId}:cancel` | mock implemented | Cancel mock analysis/run and append `run.cancelled` |
 | `POST /api/analyses/{analysisId}:branch` | draft | Branch from checkpoint/state snapshot |
 | `GET /api/analyses/{analysisId}/interrupts` | mock implemented | List pending approval gates |
 | `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve` | mock implemented | Approve mock interrupt, append `approval.approved`, and record `AuditLog` |
@@ -81,7 +81,7 @@
 | `run.resumed` | draft | API approval resume bridge |
 | `run.succeeded` | draft | LangGraph bridge |
 | `run.failed` | draft | LangGraph bridge |
-| `run.cancelled` | draft | API / LangGraph bridge |
+| `run.cancelled` | mock implemented | API / LangGraph bridge |
 | `state.snapshot` | draft | LangGraph bridge |
 | `agent.started` | mock implemented | Agent graph nodes |
 | `agent.heartbeat` | draft | Agent graph nodes / watchdog |
@@ -148,3 +148,5 @@
 | 2026-04-25 | `find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*repository*' -o -iname '*storage*' -o -iname '*store*' -o -iname '*persistence*' \) -print | sort` | No product repository/storage module was present before P17; new repository file is the single audit API storage boundary and does not duplicate routes, services, Agent Server, or MCP modules. |
 | 2026-04-25 | `rg -n "approval\.(approved\|rejected)\|approval decision\|approval.*audit\|audit.*approval\|decide_approval\|decision_reason\|decided_by\|_record_audit_log\|list_audit_logs\|AuditLog" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Existing approval decision owner is `AuditMockService.decide_approval`; existing audit-log writer is `_record_audit_log`. P18 extends that owner only and does not add a parallel approval audit module. |
 | 2026-04-25 | `find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*approval*' -o -iname '*audit*log*' -o -iname '*decision*' \) -print | sort` | No dedicated approval decision audit module existed; only decision-log docs matched. Existing service owner is sufficient for the small closed-loop change. |
+| 2026-04-25 | `rg -n "cancel\|run\.cancelled\|cancel_analysis\|POST /api/analyses/.+:cancel\|analyses/.+:cancel\|cancelled\|ToolExecution.*cancel\|:cancel" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | `run.cancelled` and analysis cancel route were reserved, but no API service or handler implementation existed. P19 extends existing mock service and handler only. |
+| 2026-04-25 | `find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*cancel*' -o -iname '*run*' -o -iname '*analysis*' \) -print | sort` | No dedicated cancel/lifecycle module existed; the existing analysis run owner files are sufficient for the mock cancel endpoint. |

@@ -2255,3 +2255,116 @@ Observed result:
 1. Add a repository-backed branch/cancel mock API for `POST /api/analyses/{analysisId}:branch` or `POST /api/analyses/{analysisId}:cancel`.
 2. Replace in-memory repository internals with persistence/object storage adapters once RBAC and tenant checks are implemented.
 3. Add worker-side tool execution placeholder interfaces under `apps/audit-workers` once API lifecycle cancel/branch behavior is stable.
+
+## 2026-04-25: P19 Analysis Cancel Mock API
+
+### Scope
+
+- Implemented `AuditMockService.cancel_analysis` for queued, running, or interrupted mock analyses.
+- Added `POST /api/analyses/{analysisId}:cancel` HTTP dispatch to `AuditApiHandler`.
+- Cancel updates the analysis status to `cancelled`, emits `run.cancelled`, and synchronizes `GET /api/analyses/{analysisId}/state`.
+- Kept tool cancellation, worker orchestration, Agent Server cancellation, MCP routes, branch analysis, RBAC, persistence, and object storage out of scope.
+
+No new files were created in this round because the existing `AuditMockService` and `AuditApiHandler` already own analysis lifecycle behavior. A new lifecycle module would duplicate the current mock API owner for this minimum contract closure.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_mock_service.py`
+- `apps/audit-api/tests/test_server.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+- `https://docs.langchain.com/langsmith/agent-server`
+
+Adopted conclusions:
+
+- Product lifecycle routes stay behind `/api/*`; frontend should not call native Agent Server run routes directly.
+- `run.cancelled` should be a product `AuditEvent` frame and state update, with later Agent Server cancellation mapped behind the API.
+- No `tool.cancelled` event should be emitted until a real tool execution exists.
+- Persistence/checkpoint integration remains future work; the mock endpoint stabilizes the contract first.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "cancel|run\.cancelled|cancel_analysis|POST /api/analyses/.+:cancel|analyses/.+:cancel|cancelled|ToolExecution.*cancel|:cancel" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S
+find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*cancel*' -o -iname '*run*' -o -iname '*analysis*' \) -print | sort
+```
+
+Result:
+
+- `run.cancelled` and `POST /api/analyses/{analysisId}:cancel` were reserved in contracts.
+- No `cancel_analysis` service method or HTTP route implementation existed.
+- P19 extends existing mock service and handler only; no parallel lifecycle, Agent Server, MCP, worker, or tool cancel module was added.
+
+### TDD Evidence
+
+Red targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_cancel_analysis_marks_cancelled_and_appends_event tests.test_server.AuditApiHandlerRouteTests.test_post_analysis_cancel_marks_analysis_cancelled -v
+```
+
+Observed result before implementation:
+
+- Service test errored with `AttributeError: 'AuditMockService' object has no attribute 'cancel_analysis'`.
+- HTTP route test errored with `HTTP Error 404: Not Found`.
+
+Green targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_cancel_analysis_marks_cancelled_and_appends_event tests.test_server.AuditApiHandlerRouteTests.test_post_analysis_cancel_marks_analysis_cancelled -v
+```
+
+Observed result after implementation:
+
+- 2 targeted cancel tests ran and passed.
+
+### Files Changed
+
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `apps/audit-api/audit_api/server.py`
+- Updated `apps/audit-api/tests/test_mock_service.py`
+- Updated `apps/audit-api/tests/test_server.py`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Validation
+
+Final validation commands:
+
+```bash
+cd apps/audit-api && make format && make lint && make test
+rg -n "P19|cancel_analysis|run\.cancelled|analyses/\{analysisId\}:cancel|analysis_1:cancel|Mock Analysis Cancel" docs/blueprints apps/audit-api -S
+rg -n '``[^`\n]+``' apps/audit-api docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md -S
+```
+
+Observed result:
+
+- `make format` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make lint` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make test` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest discover tests -v`; 56 API tests ran and passed.
+- P19 keyword search returned the updated API code, tests, OpenAPI contract, event note, decision log, feature registry, and progress log.
+- Inline Sphinx-style double-backtick search in touched code and blueprint paths returned no matches.
+
+### Next Recommended Tasks
+
+1. Add `POST /api/analyses/{analysisId}:branch` mock support backed by the repository state snapshot.
+2. Replace in-memory repository internals with persistence/object storage adapters once RBAC and tenant checks are implemented.
+3. Add worker-side tool execution placeholder interfaces under `apps/audit-workers` after branch behavior is stable.

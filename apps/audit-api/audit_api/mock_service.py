@@ -419,6 +419,19 @@ class AuditMockService:
         self._sync_agent_state(analysis_id)
         return cast(PublicResource, to_camel(analysis))
 
+    def cancel_analysis(self, analysis_id: str) -> PublicResource:
+        self._require_analysis(analysis_id)
+        analysis = self._analyses[analysis_id]
+        if analysis["status"] == "cancelled":
+            return cast(PublicResource, to_camel(analysis))
+        if analysis["status"] == "succeeded":
+            raise ValueError(f"analysis already succeeded: {analysis_id}")
+        analysis["status"] = "cancelled"
+        analysis["updated_at"] = self._timestamp()
+        self._events[analysis_id].append(self._create_run_event(analysis, "run.cancelled"))
+        self._sync_agent_state(analysis_id)
+        return cast(PublicResource, to_camel(analysis))
+
     def decide_approval(
         self,
         analysis_id: str,

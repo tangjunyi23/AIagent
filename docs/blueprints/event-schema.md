@@ -97,6 +97,8 @@ RunPayload:
 
 Used by `run.queued`, `run.started`, `run.interrupted`, `run.resumed`, `run.succeeded`, `run.failed`, and `run.cancelled`.
 
+P19 mock status: `POST /api/analyses/{analysisId}:cancel` emits `run.cancelled` with the standard `RunPayload` and synchronizes `GET /api/analyses/{analysisId}/state`. It does not emit worker or tool cancellation events because no mock tool execution is launched.
+
 ### 4.2 State Snapshot
 
 ```yaml

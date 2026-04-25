@@ -197,6 +197,10 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             if path == "/api/reports":
                 self._send_json(201, self.service.create_report(payload))
                 return
+            if path.startswith("/api/analyses/") and path.endswith(":cancel"):
+                analysis_id = path.removeprefix("/api/analyses/").removesuffix(":cancel")
+                self._send_json(200, self.service.cancel_analysis(analysis_id))
+                return
             artifact_export_id = self._parse_artifact_export_path(path)
             if artifact_export_id is not None:
                 self._send_json(
