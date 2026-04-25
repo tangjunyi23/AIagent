@@ -176,6 +176,86 @@ export function cancelRun(workbench: AuditWorkbench): AuditWorkbench {
   };
 }
 
+export function branchFromCheckpoint(
+  workbench: AuditWorkbench,
+  checkpointId: string,
+  reason: string
+): AuditWorkbench {
+  const sourceAnalysisId = workbench.analysis.id;
+  const branchAnalysisId = "analysis_2";
+  const artifactIdMap = new Map(
+    workbench.artifacts.map((artifact) => [
+      artifact.id,
+      branchId(artifact.id, sourceAnalysisId, branchAnalysisId)
+    ])
+  );
+  const artifacts = workbench.artifacts.map((artifact) => ({
+    ...artifact,
+    id: artifactIdMap.get(artifact.id) ?? artifact.id,
+    analysisId: branchAnalysisId,
+    uri: artifact.uri.replace(sourceAnalysisId, branchAnalysisId)
+  }));
+  const findings = workbench.findings.map((finding) => ({
+    ...finding,
+    id: branchId(finding.id, sourceAnalysisId, branchAnalysisId),
+    analysisId: branchAnalysisId,
+    evidenceArtifactIds: finding.evidenceArtifactIds.map(
+      (artifactId) => artifactIdMap.get(artifactId) ?? artifactId
+    )
+  }));
+  const approvals = workbench.approvals.map((approval) => ({
+    ...approval,
+    id: branchId(approval.id, sourceAnalysisId, branchAnalysisId),
+    analysisId: branchAnalysisId,
+    interruptId: branchId(approval.interruptId, sourceAnalysisId, branchAnalysisId),
+    status: "pending" as const,
+    decidedAt: null,
+    decidedBy: null,
+    decisionReason: null
+  }));
+  const events = [
+    createBranchEvent(1, "run.queued", branchAnalysisId, "thread_2", {
+      status: "queued",
+      checkpointId
+    }),
+    createBranchEvent(2, "state.snapshot", branchAnalysisId, "thread_2", {
+      checkpointId,
+      stateVersion: 1,
+      artifactIds: artifacts.map((artifact) => artifact.id),
+      findingIds: findings.map((finding) => finding.id),
+      approvalIds: approvals.map((approval) => approval.id),
+      nextActions: ["Review branched checkpoint state.", "Start a new run when ready."],
+      sourceAnalysisId,
+      reason
+    })
+  ];
+
+  return {
+    ...workbench,
+    analysis: {
+      ...workbench.analysis,
+      id: branchAnalysisId,
+      status: "queued",
+      langgraphThreadId: "thread_2",
+      langgraphRunId: null,
+      updatedAt: decisionTimestamp
+    },
+    state: {
+      checkpointId,
+      stateVersion: 1,
+      artifactIds: artifacts.map((artifact) => artifact.id),
+      findingIds: findings.map((finding) => finding.id),
+      approvalIds: approvals.map((approval) => approval.id),
+      nextActions: ["Review branched checkpoint state.", "Start a new run when ready."]
+    },
+    events,
+    approvals,
+    artifacts,
+    findings,
+    auditLogs: []
+  };
+}
+
 function decideInterrupt(
   workbench: AuditWorkbench,
   interruptId: string,
@@ -254,4 +334,32 @@ function createEvent(
     createdAt: baseTimestamp,
     traceId: "trace_mock_analysis_1"
   };
+}
+
+function createBranchEvent(
+  sequence: number,
+  type: AuditEventType,
+  analysisId: string,
+  threadId: string,
+  payload: Record<string, unknown>
+) {
+  return {
+    id: `evt_branch_${sequence}`,
+    sequence,
+    analysisId,
+    runId: "",
+    threadId,
+    agent: type === "run.queued" ? "api" : null,
+    node: type === "run.queued" ? "mock_branch" : "branch_from_checkpoint",
+    type,
+    payload,
+    createdAt: decisionTimestamp,
+    traceId: "trace_mock_analysis_2"
+  };
+}
+
+function branchId(value: string, sourceAnalysisId: string, branchAnalysisId: string): string {
+  return value.includes(sourceAnalysisId)
+    ? value.replace(sourceAnalysisId, branchAnalysisId)
+    : `${value}_branch_${branchAnalysisId}`;
 }

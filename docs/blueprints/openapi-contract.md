@@ -344,6 +344,19 @@ Mock implementation note: the in-memory API currently returns a deterministic pe
 
 `POST /api/analyses/{analysisId}:cancel` mock response returns the updated `Analysis`. It marks queued, running, or interrupted mock analyses as `cancelled`, emits `run.cancelled`, synchronizes the state snapshot, and does not call Agent Server, MCP, sandbox workers, or dangerous tools.
 
+`POST /api/analyses/{analysisId}:branch` mock response returns the newly created `Analysis`. It copies the source mock state snapshot into a new business analysis and new LangGraph thread lineage, emits `run.queued` plus `state.snapshot` only on the branch analysis, and leaves source analysis events unchanged. It does not call Agent Server checkpoint APIs, LangGraph time travel, MCP, workers, object storage, or dynamic tools.
+
+`POST /api/analyses/{analysisId}:branch` request:
+
+```json
+{
+  "checkpointId": "checkpoint_analysis_1_interrupt",
+  "reason": "Compare alternate static-only path."
+}
+```
+
+P21 mock status: branch artifacts, findings, approvals, and evidence links are copied with the new `analysisId`. `state.snapshot.payload.sourceAnalysisId` and `state.snapshot.payload.checkpointId` preserve branch lineage until real checkpoint-backed persistence is added.
+
 Reject request body:
 
 ```json

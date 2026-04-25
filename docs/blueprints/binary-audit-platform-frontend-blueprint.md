@@ -328,7 +328,7 @@ type AgentEvent = {
 - `Approve Gate` 调用前端 mock adapter，将 approval 状态改为 `approved`，追加 `approval.approved` 事件和 `AuditLog`。
 - `Reject Gate` 将 approval 状态改为 `rejected`，保留 finding/evidence 记录并追加 `approval.rejected`。
 - `Cancel Run` 将 analysis 状态改为 `cancelled`，追加 `run.cancelled` 并更新 state next actions。
-- `Branch From Checkpoint` 先以禁用命令展示，因为 `POST /api/analyses/{analysisId}:branch` 仍是后端 draft。
+- `Branch From Checkpoint` 调用前端 mock adapter，将当前 checkpoint 复制到新的 `analysis_2`/`thread_2` lineage，并展示 `run.queued` 与 `state.snapshot` 事件。
 
 当前前端默认使用本地结构化 mock 数据，不要求 Python mock API 同时运行。后续接入后端时应把 `src/lib/workbenchData.ts` 拆为 mock fixture 与 `/api/*` client adapter，保持组件只依赖 typed view model。
 

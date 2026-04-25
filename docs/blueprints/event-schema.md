@@ -113,6 +113,8 @@ StateSnapshotPayload:
 
 State snapshots are summary events. The full state is fetched from `GET /api/analyses/{analysisId}/state`.
 
+P21 mock status: `POST /api/analyses/{analysisId}:branch` emits `state.snapshot` on the new branch analysis after `run.queued`. The payload includes the standard snapshot fields plus `sourceAnalysisId` and `reason` so the frontend can show lineage while real LangGraph checkpoint/time-travel integration remains deferred.
+
 ### 4.3 Agent Events
 
 ```yaml

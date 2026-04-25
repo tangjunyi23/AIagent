@@ -518,6 +518,51 @@ class MockServiceTests(unittest.TestCase):
         state = service.get_analysis_state(str(analysis["id"]))
         self.assertEqual(state["analysis"]["status"], "cancelled")
 
+    def test_branch_analysis_copies_state_snapshot_to_new_analysis(self) -> None:
+        service, analysis = self.create_firmware_analysis()
+        service.start_run(str(analysis["id"]))
+
+        branch = service.branch_analysis(
+            str(analysis["id"]),
+            {
+                "checkpointId": "checkpoint_analysis_1_interrupt",
+                "reason": "Compare alternate static-only path.",
+            },
+        )
+
+        self.assertEqual(branch["id"], "analysis_2")
+        self.assertEqual(branch["projectId"], analysis["projectId"])
+        self.assertEqual(branch["sampleIds"], analysis["sampleIds"])
+        self.assertEqual(branch["status"], "queued")
+        self.assertEqual(branch["langgraphThreadId"], "thread_2")
+        self.assertIsNone(branch["langgraphRunId"])
+
+        branch_state = service.get_analysis_state(str(branch["id"]))
+        self.assertEqual(branch_state["analysis"]["id"], "analysis_2")
+        self.assertEqual(branch_state["artifacts"][0]["analysisId"], "analysis_2")
+        self.assertEqual(branch_state["findings"][0]["analysisId"], "analysis_2")
+        self.assertEqual(
+            branch_state["findings"][0]["evidenceArtifactIds"],
+            [branch_state["artifacts"][0]["id"]],
+        )
+        self.assertEqual(
+            branch_state["approvalRequests"][0]["interruptId"],
+            "interrupt_analysis_2_firmware_emulation",
+        )
+        branch_events = service.list_events(str(branch["id"]))
+        self.assertEqual([event["type"] for event in branch_events], ["run.queued", "state.snapshot"])
+        self.assertEqual(
+            branch_events[-1]["payload"]["sourceAnalysisId"],
+            analysis["id"],
+        )
+        self.assertEqual(
+            branch_events[-1]["payload"]["checkpointId"],
+            "checkpoint_analysis_1_interrupt",
+        )
+
+        source_events = service.list_events(str(analysis["id"]))
+        self.assertNotIn("state.snapshot", [event["type"] for event in source_events])
+
 
 if __name__ == "__main__":
     unittest.main()

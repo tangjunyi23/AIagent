@@ -284,3 +284,15 @@
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/interrupts
   - https://docs.langchain.com/oss/python/langgraph/persistence
+
+## 2026-04-25: Mock Branch Copies Product State Before Real Checkpoints
+
+- Decision: P21 implements `POST /api/analyses/{analysisId}:branch` in the existing mock API service and handler by copying artifacts, findings, approvals, and state snapshot references into a new mock `Analysis` and thread lineage.
+- Reason: branch analysis is a core frontend workflow, but real LangGraph checkpoint/time-travel integration, persistent storage, RBAC, and Agent Server clients are not ready. The product route can stabilize contract and UI behavior first.
+- Boundary: no real LangGraph checkpoint read, Agent Server run fork, MCP route, worker execution, object storage clone, or dynamic tool call is introduced. Source analysis events remain unchanged; the branch emits its own `run.queued` and `state.snapshot`.
+- Official docs: LangGraph persistence/checkpoints and time travel remain the target backend semantics. Product `/api/*` continues to own authorization, lineage metadata, event normalization, and frontend contracts.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/oss/python/langgraph/persistence
+  - https://docs.langchain.com/oss/python/langgraph/time-travel

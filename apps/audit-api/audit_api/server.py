@@ -201,6 +201,10 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 analysis_id = path.removeprefix("/api/analyses/").removesuffix(":cancel")
                 self._send_json(200, self.service.cancel_analysis(analysis_id))
                 return
+            if path.startswith("/api/analyses/") and path.endswith(":branch"):
+                analysis_id = path.removeprefix("/api/analyses/").removesuffix(":branch")
+                self._send_json(201, self.service.branch_analysis(analysis_id, payload))
+                return
             artifact_export_id = self._parse_artifact_export_path(path)
             if artifact_export_id is not None:
                 self._send_json(

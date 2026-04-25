@@ -468,6 +468,31 @@ class AuditApiHandlerRouteTests(unittest.TestCase):
         _, _, events = self.get_text("/api/analyses/analysis_1/events")
         self.assertIn("event: run.cancelled\n", events)
 
+    def test_post_analysis_branch_creates_new_analysis_from_checkpoint(self) -> None:
+        self.create_firmware_analysis()
+        self.post_json("/api/analyses/analysis_1/runs", {})
+
+        status, payload = self.post_json(
+            "/api/analyses/analysis_1:branch",
+            {
+                "checkpointId": "checkpoint_analysis_1_interrupt",
+                "reason": "Compare alternate static-only path.",
+            },
+        )
+
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["id"], "analysis_2")
+        self.assertEqual(payload["status"], "queued")
+        self.assertEqual(payload["langgraphThreadId"], "thread_2")
+        self.assertIsNone(payload["langgraphRunId"])
+
+        _, state = self.get_json("/api/analyses/analysis_2/state")
+        branch_state = dict(state)
+        self.assertEqual(branch_state["analysis"]["id"], "analysis_2")
+        self.assertEqual(branch_state["artifacts"][0]["analysisId"], "analysis_2")
+        _, _, events = self.get_text("/api/analyses/analysis_2/events")
+        self.assertIn("event: state.snapshot\n", events)
+
     def test_post_interrupt_approve_decides_approval(self) -> None:
         self.create_firmware_analysis()
 

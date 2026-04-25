@@ -2551,3 +2551,164 @@ Additional documentation checks are run at the end of the round.
 1. Add `POST /api/analyses/{analysisId}:branch` mock support backed by repository state snapshots, then enable the frontend branch command.
 2. Add a thin frontend API adapter that can switch between local mock data and the Python mock `/api/*` service.
 3. Create `apps/audit-workers` tool execution placeholder interfaces once branch behavior is stable.
+
+## 2026-04-25: P21 Analysis Branch Mock API And Frontend Branch Control
+
+### Scope
+
+- Implemented `AuditMockService.branch_analysis` in the existing API mock service.
+- Added `POST /api/analyses/{analysisId}:branch` dispatch to `AuditApiHandler`.
+- Branching copies source artifacts, findings, approvals, evidence links, and state snapshot references into a new mock `Analysis` and new mock thread lineage.
+- Branch events are isolated to the new branch analysis as `run.queued` and `state.snapshot`; source analysis events are unchanged.
+- Enabled the frontend `Branch From Checkpoint` command through `branchFromCheckpoint`, switching the local workbench to `analysis_2`/`thread_2` and showing branch timeline state.
+- Did not add real LangGraph checkpoint reads, Agent Server fork/run calls, MCP routes, worker execution, object storage clone, RBAC, persistence, or dynamic tools.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_mock_service.py`
+- `apps/audit-api/tests/test_server.py`
+- `apps/audit-web/src/App.tsx`
+- `apps/audit-web/src/lib/workbenchData.ts`
+- `apps/audit-web/src/tests/workbenchData.test.ts`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+- `https://docs.langchain.com/oss/python/langgraph/time-travel`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/langsmith/agent-server`
+
+Adopted conclusions:
+
+- Real branch/fork behavior should eventually use LangGraph checkpoint persistence and time travel semantics.
+- Product API remains the authorization and audit boundary; frontend must call `POST /api/analyses/{analysisId}:branch`, not native Agent Server or MCP routes.
+- A mock branch should preserve structured state references and evidence links now, while deferring real checkpoint reads and storage cloning.
+- `state.snapshot` is the correct existing event for branch snapshot summaries; no new SSE event type is needed.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "branch_analysis|create_branch|branchAnalysis|analyses/.+:branch|:branch|checkpoint.*branch|Branch From Checkpoint|branch_run|branchedFrom|parentAnalysis|sourceAnalysis|checkpointId" apps/audit-api apps/audit-web apps/audit-agents libs/audit-common docs/blueprints -S --glob '!**/node_modules/**' --glob '!**/dist/**'
+find apps/audit-api apps/audit-web apps/audit-agents libs/audit-common docs/blueprints -maxdepth 6 \( -iname '*branch*' -o -iname '*checkpoint*' -o -iname '*fork*' \) -print | rg -v 'node_modules|dist'
+```
+
+Result:
+
+- Branch was present only as contract text and a disabled frontend command.
+- Existing owners are `AuditMockService`, `AuditApiHandler`, and `apps/audit-web/src/lib/workbenchData.ts`.
+- P21 extends those owners only and does not add a parallel lifecycle, branch, Agent Server, MCP, or worker module.
+
+### TDD Evidence
+
+Red backend tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_branch_analysis_copies_state_snapshot_to_new_analysis tests.test_server.AuditApiHandlerRouteTests.test_post_analysis_branch_creates_new_analysis_from_checkpoint -v
+```
+
+Observed result before implementation:
+
+- Service test errored with `AttributeError: 'AuditMockService' object has no attribute 'branch_analysis'`.
+- HTTP route test errored with `HTTP Error 404: Not Found`.
+
+Green backend tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_branch_analysis_copies_state_snapshot_to_new_analysis tests.test_server.AuditApiHandlerRouteTests.test_post_analysis_branch_creates_new_analysis_from_checkpoint -v
+```
+
+Observed result:
+
+- 2 targeted branch tests ran and passed.
+
+Red frontend test:
+
+```bash
+cd apps/audit-web && npm test -- --run src/tests/workbenchData.test.ts
+```
+
+Observed result before implementation:
+
+- Branch test failed because `branchFromCheckpoint` was not a function.
+
+Green frontend test:
+
+```bash
+cd apps/audit-web && npm test -- --run src/tests/workbenchData.test.ts src/tests/App.test.tsx
+```
+
+Observed result:
+
+- 2 frontend test files ran and passed, covering 6 tests.
+
+### Files Changed
+
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `apps/audit-api/audit_api/server.py`
+- Updated `apps/audit-api/tests/test_mock_service.py`
+- Updated `apps/audit-api/tests/test_server.py`
+- Updated `apps/audit-web/src/App.tsx`
+- Updated `apps/audit-web/src/lib/workbenchData.ts`
+- Updated `apps/audit-web/src/tests/workbenchData.test.ts`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+No new source file was created in P21 because existing owner modules exactly match the small branch lifecycle closure. Creating a separate branch module would duplicate current mock API lifecycle ownership.
+
+### Frontend Display
+
+- Entry: `apps/audit-web/src/App.tsx`
+- Hot reload URL: `http://127.0.0.1:5173/`
+- Updated component/interaction: `Branch From Checkpoint` is now enabled.
+- How to see this round: open the URL and click `Branch From Checkpoint`; the summary switches to `analysis_2`, thread `thread_2`, run becomes empty, and the timeline shows `run.queued` plus `state.snapshot`.
+- Backend/mock API requirement: not required for the frontend display because local mock data handles the interaction. The Python mock API now also supports `POST /api/analyses/{analysisId}:branch` for integration tests.
+- Dev server status: reused existing Vite dev server on `5173`; `curl -I --max-time 5 http://127.0.0.1:5173/` returned `HTTP/1.1 200 OK`.
+
+### Validation
+
+Commands run:
+
+```bash
+cd apps/audit-api && make format && make lint && make test
+cd apps/audit-web && npm run lint
+cd apps/audit-web && npm test -- --run
+cd apps/audit-web && npm run build
+cd apps/audit-web && npm audit --audit-level=high
+rg -n "P21|branch_analysis|branchFromCheckpoint|state\.snapshot|sourceAnalysisId|Branch From Checkpoint|analyses/\{analysisId\}:branch|analysis_2|thread_2" docs/blueprints apps/audit-api apps/audit-web -S --glob '!**/node_modules/**' --glob '!**/dist/**'
+rg -n '``[^`\n]+``' apps/audit-api apps/audit-web docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md docs/blueprints/binary-audit-platform-frontend-blueprint.md -S --glob '!**/node_modules/**' --glob '!**/dist/**'
+curl -I --max-time 5 http://127.0.0.1:5173/
+```
+
+Observed result:
+
+- `apps/audit-api` format and lint ran `compileall`.
+- `apps/audit-api` test ran 58 tests; all passed.
+- `apps/audit-web` lint ran `tsc --noEmit` and exited 0.
+- `apps/audit-web` tests ran 2 files and 6 tests; all passed.
+- `apps/audit-web` build completed successfully with Vite `6.4.2`.
+- `npm audit --audit-level=high` reported `found 0 vulnerabilities`.
+- P21 keyword search returned the branch code, tests, contracts, frontend blueprint, decision log, registry, and progress entries.
+- Inline Sphinx-style double-backtick search returned no matches.
+- Dev server returned `HTTP/1.1 200 OK`.
+
+### Next Recommended Tasks
+
+1. Add a thin frontend API adapter that can switch between local mock data and the Python mock `/api/*` service.
+2. Create `apps/audit-workers` tool execution placeholder interfaces now that analysis lifecycle branch/cancel behavior is stable.
+3. Add API query support for branch lineage metadata once a persistent repository replaces in-memory storage.

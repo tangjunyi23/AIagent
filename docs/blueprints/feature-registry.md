@@ -35,12 +35,12 @@
 | Audit agent tests | `apps/audit-agents/tests/` | implemented skeleton | state initialization, supervisor node updates, graph build smoke test |
 | Audit API casing | `apps/audit-api/audit_api/casing.py` | implemented mock | `to_camel`, `to_snake` |
 | Audit API repository boundary | `apps/audit-api/audit_api/repository.py` | implemented storage boundary | `AuditRepository`, `InMemoryAuditRepository`, `allocate_id` |
-| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `get_artifact_content`, `request_artifact_export`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `cancel_analysis`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` with approval decision audit logs |
+| Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `branch_analysis`, `get_analysis`, `get_artifact`, `get_artifact_content`, `request_artifact_export`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `cancel_analysis`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` with approval decision audit logs |
 | Audit API server helpers | `apps/audit-api/audit_api/server.py` | implemented mock resources | `format_sse_event`, `AuditApiHandler`, `AuditApiHandler.with_service`, `do_GET`, `do_PATCH`, `do_POST` |
 | Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, paginated finding query/update, redacted artifact/report content, audit-log query, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
 | Audit Web app package | `apps/audit-web/package.json` | implemented initial workbench | `npm run dev`, `npm run lint`, `npm test -- --run`, `npm run build` |
-| Audit Web entry | `apps/audit-web/src/App.tsx` | implemented initial workbench | `Firmware Analysis Workbench`, analysis status summary, run cancel command, approval commands |
-| Audit Web data owner | `apps/audit-web/src/lib/workbenchData.ts` | implemented mock workbench | `createMockWorkbench`, `approveInterrupt`, `rejectInterrupt`, `cancelRun` |
+| Audit Web entry | `apps/audit-web/src/App.tsx` | implemented initial workbench | `Firmware Analysis Workbench`, analysis status summary, branch command, run cancel command, approval commands |
+| Audit Web data owner | `apps/audit-web/src/lib/workbenchData.ts` | implemented mock workbench | `createMockWorkbench`, `branchFromCheckpoint`, `approveInterrupt`, `rejectInterrupt`, `cancelRun` |
 | Audit Web types | `apps/audit-web/src/lib/types.ts` | implemented mock workbench | TypeScript `Analysis`, `AuditEvent`, `ApprovalRequest`, `ArtifactRef`, `Finding`, `AuditLog`, `AuditWorkbench` |
 | Audit Web timeline | `apps/audit-web/src/components/AnalysisTimeline.tsx` | implemented initial workbench | `AnalysisTimeline` product event view ordered by sequence |
 | Audit Web human gate | `apps/audit-web/src/components/HumanGateCard.tsx` | implemented initial workbench | `HumanGateCard` approval/interrupt display |
@@ -64,7 +64,7 @@
 | `GET /api/analyses/{analysisId}/events` | mock implemented | SSE stream using `AuditEvent` |
 | `GET /api/analyses/{analysisId}/state` | mock implemented | Latest mock `AuditAgentState` snapshot |
 | `POST /api/analyses/{analysisId}:cancel` | mock implemented | Cancel mock analysis/run and append `run.cancelled` |
-| `POST /api/analyses/{analysisId}:branch` | draft | Branch from checkpoint/state snapshot |
+| `POST /api/analyses/{analysisId}:branch` | mock implemented | Branch from checkpoint/state snapshot into a new mock analysis/thread lineage |
 | `GET /api/analyses/{analysisId}/interrupts` | mock implemented | List pending approval gates |
 | `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve` | mock implemented | Approve mock interrupt, append `approval.approved`, and record `AuditLog` |
 | `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject` | mock implemented | Reject mock interrupt, append `approval.rejected`, and record `AuditLog` |
@@ -91,7 +91,7 @@
 | `run.succeeded` | draft | LangGraph bridge |
 | `run.failed` | draft | LangGraph bridge |
 | `run.cancelled` | mock implemented | API / LangGraph bridge |
-| `state.snapshot` | draft | LangGraph bridge |
+| `state.snapshot` | mock implemented for branch | LangGraph bridge / mock branch state snapshot |
 | `agent.started` | mock implemented | Agent graph nodes |
 | `agent.heartbeat` | draft | Agent graph nodes / watchdog |
 | `agent.completed` | draft | Agent graph nodes |
@@ -163,3 +163,5 @@
 | 2026-04-25 | `find . -maxdepth 3 \( -name package.json -o -name vite.config.* -o -name next.config.* -o -name tsconfig.json -o -name pnpm-workspace.yaml -o -name package-lock.json -o -name yarn.lock \) -print | sort` | No existing root or app-level frontend workspace config existed before P20. |
 | 2026-04-25 | `rg -n "audit-web|Vite|React|Next|AnalysisTimeline|HumanGate|ArtifactViewer|FindingBoard|audit workbench|dev server|hot reload|HMR" apps docs libs -S` | Only blueprint references existed; no implemented frontend page, component, API client, mock data, event viewer, or debug module existed. |
 | 2026-04-25 | `rg -n "AuditApiClient|AuditWorkbench|AnalysisTimeline|HumanGateCard|ArtifactViewer|FindingBoard|AuditEvent|approval\.requested|run\.cancelled|artifact.content.read|report.content.read" apps libs docs/blueprints -S` | Existing owner was backend contracts and mock API only; P20 adds the first frontend workbench and does not duplicate backend API modules. |
+| 2026-04-25 | `rg -n "branch_analysis|create_branch|branchAnalysis|analyses/.+:branch|:branch|checkpoint.*branch|Branch From Checkpoint|branch_run|branchedFrom|parentAnalysis|sourceAnalysis|checkpointId" apps/audit-api apps/audit-web apps/audit-agents libs/audit-common docs/blueprints -S --glob '!**/node_modules/**' --glob '!**/dist/**'` | Branch existed only as contract text and a disabled frontend command; P21 extends existing `AuditMockService`, `AuditApiHandler`, and `workbenchData` owners. |
+| 2026-04-25 | `find apps/audit-api apps/audit-web apps/audit-agents libs/audit-common docs/blueprints -maxdepth 6 \( -iname '*branch*' -o -iname '*checkpoint*' -o -iname '*fork*' \) -print \| rg -v 'node_modules|dist'` | No existing product branch module or route file was present; no parallel lifecycle module was added. |

@@ -7,6 +7,7 @@ import { FindingBoard } from "./components/FindingBoard";
 import { HumanGateCard } from "./components/HumanGateCard";
 import {
   approveInterrupt,
+  branchFromCheckpoint,
   cancelRun,
   createMockWorkbench,
   rejectInterrupt
@@ -62,7 +63,19 @@ export default function App() {
           <Ban size={16} aria-hidden="true" />
           Cancel Run
         </button>
-        <button type="button" className="command muted" disabled>
+        <button
+          type="button"
+          className="command"
+          onClick={() =>
+            setWorkbench((current) =>
+              branchFromCheckpoint(
+                current,
+                current.state.checkpointId,
+                "Compare alternate static-only path."
+              )
+            )
+          }
+        >
           <GitBranch size={16} aria-hidden="true" />
           Branch From Checkpoint
         </button>

@@ -432,6 +432,58 @@ class AuditMockService:
         self._sync_agent_state(analysis_id)
         return cast(PublicResource, to_camel(analysis))
 
+    def branch_analysis(
+        self,
+        analysis_id: str,
+        payload: PublicResource,
+    ) -> PublicResource:
+        self._require_analysis(analysis_id)
+        body = cast(dict[str, Any], to_snake(payload))
+        checkpoint_id = str(body.get("checkpoint_id", f"checkpoint_{analysis_id}_latest"))
+        reason = str(body.get("reason", "Branch from checkpoint."))
+        source = self._analyses[analysis_id]
+        branch_id = self._allocate_id("analysis")
+        thread_id = self._allocate_id("thread")
+        branch: Analysis = {
+            "id": branch_id,
+            "project_id": source["project_id"],
+            "sample_ids": list(source["sample_ids"]),
+            "scenario": source["scenario"],
+            "status": "queued",
+            "policy": cast(AuditPolicy, dict(source["policy"])),
+            "langgraph_thread_id": thread_id,
+            "langgraph_run_id": None,
+            "created_at": self._timestamp(),
+            "updated_at": self._timestamp(),
+        }
+        self._analyses[branch_id] = branch
+        artifact_id_map = self._copy_branch_artifacts(analysis_id, branch_id, checkpoint_id)
+        self._copy_branch_findings(analysis_id, branch_id, artifact_id_map, checkpoint_id)
+        self._approvals[branch_id] = self._copy_branch_approvals(
+            analysis_id,
+            branch_id,
+            artifact_id_map,
+            checkpoint_id,
+        )
+        self._events[branch_id] = [
+            self._create_run_queued_event(branch),
+            self._create_state_snapshot_event(
+                branch,
+                source_analysis_id=analysis_id,
+                checkpoint_id=checkpoint_id,
+                reason=reason,
+            ),
+        ]
+        self._agent_states[branch_id] = create_initial_state(
+            analysis_id=branch_id,
+            project_id=branch["project_id"],
+            sample_ids=branch["sample_ids"],
+            scenario=branch["scenario"],
+            thread_id=thread_id,
+        )
+        self._sync_agent_state(branch_id)
+        return cast(PublicResource, to_camel(branch))
+
     def decide_approval(
         self,
         analysis_id: str,
@@ -601,6 +653,51 @@ class AuditMockService:
                 "size": artifact["size"],
                 "sha256": artifact["sha256"],
                 "tool_execution_id": artifact["producer"]["tool_execution_id"],
+            },
+            "created_at": self._timestamp(),
+            "trace_id": None,
+        }
+
+    def _create_state_snapshot_event(
+        self,
+        analysis: Analysis,
+        source_analysis_id: str,
+        checkpoint_id: str,
+        reason: str,
+    ) -> AuditEvent:
+        event_id = self._allocate_id("evt")
+        artifacts = [
+            artifact
+            for artifact in self._artifacts.values()
+            if artifact["analysis_id"] == analysis["id"]
+        ]
+        findings = [
+            finding
+            for finding in self._findings.values()
+            if finding["analysis_id"] == analysis["id"]
+        ]
+        approvals = self._approvals.get(analysis["id"], [])
+        return {
+            "id": event_id,
+            "sequence": len(self._events.get(analysis["id"], [])) + 1,
+            "analysis_id": analysis["id"],
+            "run_id": "",
+            "thread_id": analysis["langgraph_thread_id"],
+            "node": "branch_from_checkpoint",
+            "agent": None,
+            "type": "state.snapshot",
+            "payload": {
+                "checkpoint_id": checkpoint_id,
+                "state_version": 1,
+                "artifact_ids": [artifact["id"] for artifact in artifacts],
+                "finding_ids": [finding["id"] for finding in findings],
+                "approval_ids": [approval["id"] for approval in approvals],
+                "next_actions": [
+                    "Review branched checkpoint state.",
+                    "Start a new run when ready.",
+                ],
+                "source_analysis_id": source_analysis_id,
+                "reason": reason,
             },
             "created_at": self._timestamp(),
             "trace_id": None,
@@ -913,6 +1010,143 @@ class AuditMockService:
             ):
                 return approval
         return None
+
+    def _copy_branch_artifacts(
+        self,
+        source_analysis_id: str,
+        branch_analysis_id: str,
+        checkpoint_id: str,
+    ) -> dict[str, str]:
+        artifact_id_map: dict[str, str] = {}
+        source_artifacts = [
+            artifact
+            for artifact in self._artifacts.values()
+            if artifact["analysis_id"] == source_analysis_id
+        ]
+        for artifact in source_artifacts:
+            branched_id = self._branch_id(artifact["id"], source_analysis_id, branch_analysis_id)
+            artifact_id_map[artifact["id"]] = branched_id
+            branched_artifact = cast(ArtifactRef, dict(artifact))
+            branched_artifact["id"] = branched_id
+            branched_artifact["analysis_id"] = branch_analysis_id
+            branched_artifact["producer"] = dict(artifact["producer"])
+            branched_artifact["metadata"] = {
+                **dict(artifact["metadata"]),
+                "branched_from_analysis_id": source_analysis_id,
+                "branched_from_artifact_id": artifact["id"],
+                "branched_from_checkpoint_id": checkpoint_id,
+            }
+            branched_artifact["created_at"] = self._timestamp()
+            self._artifacts[branched_id] = branched_artifact
+        return artifact_id_map
+
+    def _copy_branch_findings(
+        self,
+        source_analysis_id: str,
+        branch_analysis_id: str,
+        artifact_id_map: dict[str, str],
+        checkpoint_id: str,
+    ) -> None:
+        source_findings = [
+            finding
+            for finding in self._findings.values()
+            if finding["analysis_id"] == source_analysis_id
+        ]
+        for finding in source_findings:
+            branched_id = self._branch_id(finding["id"], source_analysis_id, branch_analysis_id)
+            branched_finding = cast(Finding, dict(finding))
+            branched_finding["id"] = branched_id
+            branched_finding["analysis_id"] = branch_analysis_id
+            branched_finding["evidence_artifact_ids"] = [
+                artifact_id_map.get(artifact_id, artifact_id)
+                for artifact_id in finding["evidence_artifact_ids"]
+            ]
+            branched_finding["verification"] = dict(finding["verification"])
+            branched_finding["created_at"] = self._timestamp()
+            branched_finding["updated_at"] = self._timestamp()
+            branched_finding["verification"]["notes"] = (
+                f"Branched from {source_analysis_id} at {checkpoint_id}."
+            )
+            self._findings[branched_id] = branched_finding
+
+    def _copy_branch_approvals(
+        self,
+        source_analysis_id: str,
+        branch_analysis_id: str,
+        artifact_id_map: dict[str, str],
+        checkpoint_id: str,
+    ) -> list[ApprovalRequest]:
+        branched_approvals: list[ApprovalRequest] = []
+        for approval in self._approvals[source_analysis_id]:
+            branched_approval = cast(ApprovalRequest, dict(approval))
+            branched_approval["id"] = self._branch_id(
+                approval["id"],
+                source_analysis_id,
+                branch_analysis_id,
+            )
+            branched_approval["analysis_id"] = branch_analysis_id
+            branched_approval["interrupt_id"] = self._branch_id(
+                approval["interrupt_id"],
+                source_analysis_id,
+                branch_analysis_id,
+            )
+            branched_approval["proposed_parameters"] = cast(
+                dict[str, object],
+                self._branch_value(
+                    approval["proposed_parameters"],
+                    source_analysis_id,
+                    branch_analysis_id,
+                    artifact_id_map,
+                ),
+            )
+            branched_approval["reason"] = (
+                f"{approval['reason']} Branched from {source_analysis_id} at {checkpoint_id}."
+            )
+            branched_approvals.append(branched_approval)
+        return branched_approvals
+
+    def _branch_id(
+        self,
+        value: str,
+        source_analysis_id: str,
+        branch_analysis_id: str,
+    ) -> str:
+        if source_analysis_id in value:
+            return value.replace(source_analysis_id, branch_analysis_id)
+        return f"{value}_branch_{branch_analysis_id}"
+
+    def _branch_value(
+        self,
+        value: object,
+        source_analysis_id: str,
+        branch_analysis_id: str,
+        artifact_id_map: dict[str, str],
+    ) -> object:
+        if isinstance(value, dict):
+            return {
+                key: self._branch_value(
+                    item,
+                    source_analysis_id,
+                    branch_analysis_id,
+                    artifact_id_map,
+                )
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [
+                self._branch_value(
+                    item,
+                    source_analysis_id,
+                    branch_analysis_id,
+                    artifact_id_map,
+                )
+                for item in value
+            ]
+        if isinstance(value, str):
+            if value in artifact_id_map:
+                return artifact_id_map[value]
+            return value.replace(source_analysis_id, branch_analysis_id)
+        return value
 
     def _has_approved_dangerous_action(self, analysis_id: str) -> bool:
         return any(

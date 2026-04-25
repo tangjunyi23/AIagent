@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   approveInterrupt,
+  branchFromCheckpoint,
   cancelRun,
   createMockWorkbench,
   rejectInterrupt
@@ -51,5 +52,24 @@ describe("audit workbench data", () => {
     expect(cancelled.analysis.status).toBe("cancelled");
     expect(cancelled.events.at(-1)?.type).toBe("run.cancelled");
     expect(cancelled.state.nextActions).toContain("Run cancelled by analyst");
+  });
+
+  it("branches from the checkpoint into a new analysis lineage", () => {
+    const branched = branchFromCheckpoint(
+      createMockWorkbench(),
+      "checkpoint_analysis_1_interrupt",
+      "Compare alternate static-only path."
+    );
+
+    expect(branched.analysis.id).toBe("analysis_2");
+    expect(branched.analysis.status).toBe("queued");
+    expect(branched.analysis.langgraphThreadId).toBe("thread_2");
+    expect(branched.analysis.langgraphRunId).toBeNull();
+    expect(branched.events.map((event) => event.type)).toEqual(["run.queued", "state.snapshot"]);
+    expect(branched.events.at(-1)?.payload.sourceAnalysisId).toBe("analysis_1");
+    expect(branched.events.at(-1)?.payload.checkpointId).toBe("checkpoint_analysis_1_interrupt");
+    expect(branched.artifacts[0].analysisId).toBe("analysis_2");
+    expect(branched.findings[0].evidenceArtifactIds).toEqual([branched.artifacts[0].id]);
+    expect(branched.approvals[0].interruptId).toBe("interrupt_analysis_2_firmware_emulation");
   });
 });
