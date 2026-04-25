@@ -13,7 +13,7 @@
 
 | Layer | Path | Status | Purpose |
 | --- | --- | --- | --- |
-| Web | `apps/audit-web/` | planned | React/Next.js frontend workbench |
+| Web | `apps/audit-web/` | implemented initial workbench | Vite + React + TypeScript frontend workbench |
 | API | `apps/audit-api/` | implemented mock | Business API, RBAC, tenants, samples, analyses, artifacts, findings, reports |
 | Agents | `apps/audit-agents/` | implemented skeleton | LangGraph state, graphs, subgraphs, supervisor, routers, prompts |
 | Workers | `apps/audit-workers/` | planned | Tool execution, sandbox adapters, MCP tool servers, normalizers |
@@ -38,6 +38,15 @@
 | Audit API mock service | `apps/audit-api/audit_api/mock_service.py` | implemented mock resources | `AuditMockService`, `create_project`, `get_project`, `upload_sample`, `get_sample`, `create_analysis`, `get_analysis`, `get_artifact`, `get_artifact_content`, `request_artifact_export`, `list_findings`, `patch_finding`, `create_report`, `get_report`, `get_report_content`, `list_audit_logs`, `start_run`, `resume_run`, `cancel_analysis`, `get_analysis_state`, `list_events`, `list_approvals`, `decide_approval` with approval decision audit logs |
 | Audit API server helpers | `apps/audit-api/audit_api/server.py` | implemented mock resources | `format_sse_event`, `AuditApiHandler`, `AuditApiHandler.with_service`, `do_GET`, `do_PATCH`, `do_POST` |
 | Audit API tests | `apps/audit-api/tests/` | implemented mock resources | casing conversion, in-memory resource flow, HTTP POST/GET/PATCH dispatch, paginated finding query/update, redacted artifact/report content, audit-log query, mock run start/resume, state snapshot, SSE formatting, approval list/approve/reject flows |
+| Audit Web app package | `apps/audit-web/package.json` | implemented initial workbench | `npm run dev`, `npm run lint`, `npm test -- --run`, `npm run build` |
+| Audit Web entry | `apps/audit-web/src/App.tsx` | implemented initial workbench | `Firmware Analysis Workbench`, analysis status summary, run cancel command, approval commands |
+| Audit Web data owner | `apps/audit-web/src/lib/workbenchData.ts` | implemented mock workbench | `createMockWorkbench`, `approveInterrupt`, `rejectInterrupt`, `cancelRun` |
+| Audit Web types | `apps/audit-web/src/lib/types.ts` | implemented mock workbench | TypeScript `Analysis`, `AuditEvent`, `ApprovalRequest`, `ArtifactRef`, `Finding`, `AuditLog`, `AuditWorkbench` |
+| Audit Web timeline | `apps/audit-web/src/components/AnalysisTimeline.tsx` | implemented initial workbench | `AnalysisTimeline` product event view ordered by sequence |
+| Audit Web human gate | `apps/audit-web/src/components/HumanGateCard.tsx` | implemented initial workbench | `HumanGateCard` approval/interrupt display |
+| Audit Web artifacts | `apps/audit-web/src/components/ArtifactViewer.tsx` | implemented initial workbench | `ArtifactViewer` redacted preview and audit-log count |
+| Audit Web findings | `apps/audit-web/src/components/FindingBoard.tsx` | implemented initial workbench | `FindingBoard` finding lifecycle summary and evidence artifact link |
+| Audit Web tests | `apps/audit-web/src/tests/` | implemented initial workbench | data reducer tests and React server-render smoke test |
 
 ## 4. Reserved API Routes
 
@@ -150,3 +159,7 @@
 | 2026-04-25 | `find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*approval*' -o -iname '*audit*log*' -o -iname '*decision*' \) -print | sort` | No dedicated approval decision audit module existed; only decision-log docs matched. Existing service owner is sufficient for the small closed-loop change. |
 | 2026-04-25 | `rg -n "cancel\|run\.cancelled\|cancel_analysis\|POST /api/analyses/.+:cancel\|analyses/.+:cancel\|cancelled\|ToolExecution.*cancel\|:cancel" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | `run.cancelled` and analysis cancel route were reserved, but no API service or handler implementation existed. P19 extends existing mock service and handler only. |
 | 2026-04-25 | `find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*cancel*' -o -iname '*run*' -o -iname '*analysis*' \) -print | sort` | No dedicated cancel/lifecycle module existed; the existing analysis run owner files are sufficient for the mock cancel endpoint. |
+| 2026-04-25 | `find apps -maxdepth 2 -type d | sort` | No `apps/audit-web` directory existed before P20; the reserved frontend owner path was available. |
+| 2026-04-25 | `find . -maxdepth 3 \( -name package.json -o -name vite.config.* -o -name next.config.* -o -name tsconfig.json -o -name pnpm-workspace.yaml -o -name package-lock.json -o -name yarn.lock \) -print | sort` | No existing root or app-level frontend workspace config existed before P20. |
+| 2026-04-25 | `rg -n "audit-web|Vite|React|Next|AnalysisTimeline|HumanGate|ArtifactViewer|FindingBoard|audit workbench|dev server|hot reload|HMR" apps docs libs -S` | Only blueprint references existed; no implemented frontend page, component, API client, mock data, event viewer, or debug module existed. |
+| 2026-04-25 | `rg -n "AuditApiClient|AuditWorkbench|AnalysisTimeline|HumanGateCard|ArtifactViewer|FindingBoard|AuditEvent|approval\.requested|run\.cancelled|artifact.content.read|report.content.read" apps libs docs/blueprints -S` | Existing owner was backend contracts and mock API only; P20 adds the first frontend workbench and does not duplicate backend API modules. |

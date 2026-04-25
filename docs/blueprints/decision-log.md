@@ -271,3 +271,16 @@
   - https://docs.langchain.com/langsmith/agent-server
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/persistence
+
+## 2026-04-25: First Audit Web Workbench Uses Product Mock Contracts
+
+- Decision: P20 creates `apps/audit-web` as a Vite + React + TypeScript app that renders local structured mock data matching the product `/api/*`, SSE, approval, artifact, finding, report, and audit-log contracts.
+- Reason: the backend mock API already exposes enough contract surface for a visible workbench, but no frontend owner existed. A local mock workbench gives hot-reload feedback without exposing native Agent Server or MCP routes to the browser.
+- Boundary: no real sample upload, Agent Server client, MCP client, worker console, object storage download, dynamic execution, external network, or production auth is introduced. The Python mock API is optional for this round because the frontend uses deterministic local mock records.
+- Official docs: LangGraph streaming, interrupts, state, and persistence remain the model behind the product event/state contracts. LangSmith Agent Server and MCP remain integration targets behind the business API, not direct frontend dependencies.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/interrupts
+  - https://docs.langchain.com/oss/python/langgraph/persistence

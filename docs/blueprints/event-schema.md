@@ -255,6 +255,8 @@ ErrorPayload:
 - `FindingBoard`: refreshes on `finding.created` and `finding.updated`.
 - `ToolConsole`: consumes `tool.output_chunk` and falls back to log artifacts.
 
+P20 frontend status: `apps/audit-web` implements the first local mock mapping for `AnalysisTimeline`, `HumanGateCard`, `ArtifactViewer`, and `FindingBoard`. The mock workbench renders `run.queued`, `agent.started`, `approval.requested`, `run.interrupted`, `approval.approved`, `approval.rejected`, and `run.cancelled` event flows. Artifact content reads and approval decisions are shown through `AuditLog` records rather than new SSE event types, matching the backend mock contract.
+
 ## 6. LangGraph Mapping
 
 - LangGraph stream state updates are normalized into `state.snapshot`, `agent.*`, and `token.delta` events.

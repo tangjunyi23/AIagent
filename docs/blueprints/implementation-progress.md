@@ -2368,3 +2368,186 @@ Observed result:
 1. Add `POST /api/analyses/{analysisId}:branch` mock support backed by the repository state snapshot.
 2. Replace in-memory repository internals with persistence/object storage adapters once RBAC and tenant checks are implemented.
 3. Add worker-side tool execution placeholder interfaces under `apps/audit-workers` after branch behavior is stable.
+
+## 2026-04-25: P20 Audit Web Initial Workbench
+
+### Scope
+
+- Created `apps/audit-web` as the first hot-reloadable frontend workbench under the reserved blueprint path.
+- Implemented a Vite + React + TypeScript app that renders structured local mock data matching the current product `/api/*`, SSE, approval, artifact, finding, report, and audit-log contracts.
+- Added `AnalysisTimeline`, `HumanGateCard`, `ArtifactViewer`, and `FindingBoard` components.
+- Added frontend state transitions for `Approve Gate`, `Reject Gate`, and `Cancel Run`, updating approval records, `AuditEvent` timeline records, `AuditLog` records, and state next actions.
+- Added frontend unit/smoke tests for the workbench data owner and React server-rendered shell.
+- Did not add real Agent Server, MCP, dynamic execution, network use, object storage downloads, production auth, or live Python API calls.
+
+The Python mock API does not need to run for this frontend round. The page uses deterministic local mock data so the workbench remains visible even while API integration is developed.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_server.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+- `https://docs.langchain.com/oss/python/langgraph/overview`
+- `https://docs.langchain.com/langsmith/agent-server`
+
+Adopted conclusions:
+
+- Frontend should keep consuming product-owned `/api/*` resources and `AuditEvent` envelopes rather than native Agent Server or MCP routes.
+- LangGraph streaming maps to stable product timeline events; the first UI should render event sequence, type, agent, and node instead of raw provider chunks.
+- LangGraph interrupts map to `ApprovalRequest` and approval events; the first UI should make dangerous action gates explicit and structured.
+- Persistence/checkpoint semantics remain contract-visible through state snapshot fields and a disabled branch command until `POST /api/analyses/{analysisId}:branch` is implemented.
+- MCP remains a later integration/debug surface behind product authorization, not a direct frontend dependency.
+
+### Duplicate Function Check
+
+Backend/API commands used:
+
+```bash
+rg -n "AuditApiClient|AuditWorkbench|AnalysisTimeline|HumanGateCard|ArtifactViewer|FindingBoard|AuditEvent|approval\.requested|run\.cancelled|artifact.content.read|report.content.read" apps libs docs/blueprints -S
+rg -n "POST /api/analyses/.+:branch|branch_analysis|create_branch|checkpoint|fork|time travel|branch analysis|:branch" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S
+find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*branch*' -o -iname '*checkpoint*' -o -iname '*fork*' \) -print | sort
+```
+
+Result:
+
+- Existing owner for backend resources remains `AuditMockService` and `AuditApiHandler`.
+- Branch API is still contract-only draft; P20 shows the disabled branch control but does not add a backend route.
+- No backend API client or frontend workbench owner existed before this round.
+
+Frontend commands used:
+
+```bash
+find apps -maxdepth 2 -type d | sort
+find . -maxdepth 3 \( -name package.json -o -name vite.config.* -o -name next.config.* -o -name tsconfig.json -o -name pnpm-workspace.yaml -o -name package-lock.json -o -name yarn.lock \) -print | sort
+rg -n "audit-web|Vite|React|Next|AnalysisTimeline|HumanGate|ArtifactViewer|FindingBoard|audit workbench|dev server|hot reload|HMR" apps docs libs -S
+find apps libs docs/blueprints -maxdepth 6 \( -iname '*audit*web*' -o -iname '*workbench*' -o -iname '*timeline*' -o -iname '*human*gate*' -o -iname '*artifact*viewer*' -o -iname '*finding*board*' -o -iname '*audit*client*' \) -print | sort
+```
+
+Result:
+
+- `apps/audit-web` did not exist.
+- No package manager workspace or implemented frontend stack existed in this checkout.
+- Existing references were only blueprint/component names; P20 creates the reserved owner path instead of adding a parallel app.
+
+### TDD Evidence
+
+Red data test:
+
+```bash
+cd apps/audit-web && npm test -- --run src/tests/workbenchData.test.ts
+```
+
+Observed result before implementation:
+
+- Failed because `src/lib/workbenchData.ts` did not exist.
+
+Green data test:
+
+```bash
+cd apps/audit-web && npm test -- --run src/tests/workbenchData.test.ts
+```
+
+Observed result after implementation:
+
+- 4 workbench data tests ran and passed.
+
+Red UI test:
+
+```bash
+cd apps/audit-web && npm test -- --run src/tests/App.test.tsx
+```
+
+Observed result before UI implementation:
+
+- Failed because `src/App.tsx` did not exist.
+
+Green UI/data test:
+
+```bash
+cd apps/audit-web && npm test -- --run src/tests/App.test.tsx src/tests/workbenchData.test.ts
+```
+
+Observed result:
+
+- 2 test files ran and passed, covering 5 tests.
+
+### Files Changed
+
+- Created `docs/superpowers/plans/2026-04-25-audit-web-workbench.md`
+- Created `apps/audit-web/package.json`
+- Created `apps/audit-web/package-lock.json`
+- Created `apps/audit-web/README.md`
+- Created `apps/audit-web/index.html`
+- Created `apps/audit-web/tsconfig.json`
+- Created `apps/audit-web/tsconfig.node.json`
+- Created `apps/audit-web/vite.config.ts`
+- Created `apps/audit-web/src/main.tsx`
+- Created `apps/audit-web/src/App.tsx`
+- Created `apps/audit-web/src/lib/types.ts`
+- Created `apps/audit-web/src/lib/workbenchData.ts`
+- Created `apps/audit-web/src/components/AnalysisTimeline.tsx`
+- Created `apps/audit-web/src/components/HumanGateCard.tsx`
+- Created `apps/audit-web/src/components/ArtifactViewer.tsx`
+- Created `apps/audit-web/src/components/FindingBoard.tsx`
+- Created `apps/audit-web/src/styles.css`
+- Created `apps/audit-web/src/tests/App.test.tsx`
+- Created `apps/audit-web/src/tests/workbenchData.test.ts`
+- Updated `.gitignore`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Frontend Display
+
+- Entry: `apps/audit-web/src/App.tsx`
+- Hot reload URL: `http://127.0.0.1:5173/`
+- Page: `Firmware Analysis Workbench`
+- Components shown: `AnalysisTimeline`, `HumanGateCard`, `ArtifactViewer`, `FindingBoard`, report metadata, audit log list, analysis summary, run controls.
+- How to see this round: open the URL, inspect the timeline and panels, click `Approve Gate`, `Reject Gate`, or `Cancel Run` to see structured state/event/audit-log changes.
+- Backend/mock API requirement: not required for this round. The frontend uses local structured mock data that mirrors the backend contract.
+- Dev server status: started with `npm run dev -- --port 5173`; `curl -I --max-time 5 http://127.0.0.1:5173/` returned `HTTP/1.1 200 OK`.
+
+### Validation
+
+Commands run:
+
+```bash
+cd apps/audit-web && npm install
+cd apps/audit-web && npm run lint
+cd apps/audit-web && npm test -- --run
+cd apps/audit-web && npm run build
+cd apps/audit-web && npm audit --audit-level=high
+```
+
+Observed result:
+
+- `npm install` completed after pinning `vite` to `6.4.2`, `@vitejs/plugin-react` to `4.7.0`, and `vitest` to `3.2.4` so local Node `20.18.1` is supported and Vite audit advisories are patched.
+- `npm run lint` ran `tsc --noEmit` and exited 0.
+- `npm test -- --run` ran 2 test files and 5 tests; all passed.
+- `npm run build` ran `tsc --noEmit && vite build`; production build completed successfully.
+- `npm audit --audit-level=high` reported `found 0 vulnerabilities`.
+
+Additional documentation checks are run at the end of the round.
+
+### Next Recommended Tasks
+
+1. Add `POST /api/analyses/{analysisId}:branch` mock support backed by repository state snapshots, then enable the frontend branch command.
+2. Add a thin frontend API adapter that can switch between local mock data and the Python mock `/api/*` service.
+3. Create `apps/audit-workers` tool execution placeholder interfaces once branch behavior is stable.

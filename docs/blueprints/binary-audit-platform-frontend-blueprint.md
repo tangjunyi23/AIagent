@@ -312,6 +312,26 @@ type AgentEvent = {
 
 字段：CWE、CVE、CVSS、影响、证据、复现、修复建议、关联 artifact。
 
+### 6.6 P20 初始工作台落地状态
+
+`apps/audit-web` 已创建为 Vite + React + TypeScript 热重载应用，当前第一屏是 `Firmware Analysis Workbench`。
+
+已落地组件：
+
+- `AnalysisTimeline`：按 `AuditEvent.sequence` 展示 `run.*`、`agent.*` 和 `approval.*` mock 事件。
+- `HumanGateCard`：展示 `firmware-emulation` interrupt/approval gate、风险摘要和结构化参数。
+- `ArtifactViewer`：展示 redacted `vuln.finding_evidence` 预览和审计日志计数。
+- `FindingBoard`：展示 mock finding、严重度、状态、置信度和证据 artifact ID。
+
+交互：
+
+- `Approve Gate` 调用前端 mock adapter，将 approval 状态改为 `approved`，追加 `approval.approved` 事件和 `AuditLog`。
+- `Reject Gate` 将 approval 状态改为 `rejected`，保留 finding/evidence 记录并追加 `approval.rejected`。
+- `Cancel Run` 将 analysis 状态改为 `cancelled`，追加 `run.cancelled` 并更新 state next actions。
+- `Branch From Checkpoint` 先以禁用命令展示，因为 `POST /api/analyses/{analysisId}:branch` 仍是后端 draft。
+
+当前前端默认使用本地结构化 mock 数据，不要求 Python mock API 同时运行。后续接入后端时应把 `src/lib/workbenchData.ts` 拆为 mock fixture 与 `/api/*` client adapter，保持组件只依赖 typed view model。
+
 ## 7. 权限与安全 UX
 
 前端必须把权限模型显性化：
@@ -352,7 +372,7 @@ type AgentEvent = {
 ### M0：契约冻结
 
 - 完成 OpenAPI、事件 schema、状态枚举。
-- 前端完成 mock server 与基础布局。
+- 前端完成 mock server 与基础布局。P20 已创建 `apps/audit-web` 初始热重载工作台，用本地结构化 mock 展示当前契约。
 - 后端提供样本上传与空 run mock。
 
 ### M1：最小可用分析
