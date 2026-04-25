@@ -178,6 +178,24 @@ class AuditApiHandlerRouteTests(unittest.TestCase):
         self.assertEqual(payload["analysisId"], "analysis_1")
         self.assertEqual(payload["type"], "vuln.finding_evidence")
 
+    def test_get_artifact_content_dispatches_and_records_audit_log(self) -> None:
+        self.create_firmware_analysis()
+
+        status, payload = self.get_json("/api/artifacts/artifact_analysis_1_evidence/content")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["artifactId"], "artifact_analysis_1_evidence")
+        self.assertEqual(payload["mediaType"], "application/json")
+        self.assertTrue(payload["redacted"])
+        self.assertIn("Mock artifact preview", payload["content"])
+        self.assertEqual(payload["auditLogId"], "audit_1")
+
+        _, logs = self.get_json("/api/audit-logs?analysisId=analysis_1")
+        audit_logs = list(logs)
+        self.assertEqual(len(audit_logs), 1)
+        self.assertEqual(audit_logs[0]["action"], "artifact.content.read")
+        self.assertEqual(audit_logs[0]["resourceId"], "artifact_analysis_1_evidence")
+
     def test_get_findings_filters_by_analysis(self) -> None:
         self.create_firmware_analysis()
 

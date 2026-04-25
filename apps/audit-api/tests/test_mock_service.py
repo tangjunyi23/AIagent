@@ -264,6 +264,36 @@ class MockServiceTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             service.get_report_content("artifact_analysis_1_evidence")
 
+    def test_get_artifact_content_returns_redacted_payload_and_audit_log(self) -> None:
+        service, analysis = self.create_firmware_analysis()
+
+        content = service.get_artifact_content(
+            "artifact_analysis_1_evidence",
+            actor_id="analyst@example.com",
+        )
+
+        self.assertEqual(content["artifactId"], "artifact_analysis_1_evidence")
+        self.assertEqual(content["analysisId"], analysis["id"])
+        self.assertEqual(content["mediaType"], "application/json")
+        self.assertEqual(content["encoding"], "utf-8")
+        self.assertTrue(content["redacted"])
+        self.assertIn("Mock artifact preview", str(content["content"]))
+        self.assertEqual(content["auditLogId"], "audit_1")
+
+        logs = service.list_audit_logs(str(analysis["id"]))
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0]["action"], "artifact.content.read")
+        self.assertEqual(logs[0]["resourceType"], "artifact")
+        self.assertEqual(logs[0]["resourceId"], "artifact_analysis_1_evidence")
+        self.assertEqual(logs[0]["outcome"], "allowed")
+
+    def test_get_artifact_content_rejects_report_artifact(self) -> None:
+        service, analysis = self.create_firmware_analysis()
+        service.create_report({"analysisId": analysis["id"], "format": "markdown"})
+
+        with self.assertRaises(ValueError):
+            service.get_artifact_content("report_analysis_1_markdown")
+
     def test_list_events_returns_mock_sse_ready_events(self) -> None:
         service = AuditMockService()
         project = service.create_project(

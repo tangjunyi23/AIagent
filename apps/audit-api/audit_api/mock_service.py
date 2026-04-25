@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 from audit_common import (
@@ -145,6 +146,46 @@ class AuditMockService:
         if artifact_id not in self._artifacts:
             raise KeyError(f"unknown artifact: {artifact_id}")
         return cast(PublicResource, to_camel(self._artifacts[artifact_id]))
+
+    def get_artifact_content(
+        self,
+        artifact_id: str,
+        actor_id: str = "mock_analyst",
+    ) -> PublicResource:
+        if artifact_id not in self._artifacts:
+            raise KeyError(f"unknown artifact: {artifact_id}")
+        artifact = self._artifacts[artifact_id]
+        if not self._is_previewable_artifact(artifact):
+            raise ValueError(f"artifact content requires an explicit export path: {artifact_id}")
+        analysis = self._analyses[artifact["analysis_id"]]
+        encoding, content = self._render_artifact_content(artifact)
+        audit_log = self._record_audit_log(
+            analysis=analysis,
+            actor_id=actor_id,
+            action="artifact.content.read",
+            resource_type="artifact",
+            resource_id=artifact_id,
+            outcome="allowed",
+            reason="Mock artifact content preview.",
+            metadata={
+                "artifact_type": artifact["type"],
+                "media_type": artifact["media_type"],
+                "preview_only": True,
+                "redacted": True,
+            },
+        )
+        payload = {
+            "artifact_id": artifact_id,
+            "analysis_id": artifact["analysis_id"],
+            "project_id": artifact["project_id"],
+            "media_type": artifact["media_type"],
+            "filename": artifact["name"],
+            "encoding": encoding,
+            "redacted": True,
+            "audit_log_id": audit_log["id"],
+            "content": content,
+        }
+        return cast(PublicResource, to_camel(payload))
 
     def create_report(self, payload: PublicResource) -> PublicResource:
         body = cast(dict[str, Any], to_snake(payload))
@@ -715,6 +756,21 @@ class AuditMockService:
             "This mock content excludes raw samples, credentials, PCAP data, "
             "and bulk tool outputs.",
         )
+
+    @staticmethod
+    def _is_previewable_artifact(artifact: ArtifactRef) -> bool:
+        return artifact["type"] == "vuln.finding_evidence"
+
+    @staticmethod
+    def _render_artifact_content(artifact: ArtifactRef) -> tuple[str, str]:
+        preview = {
+            "title": "Mock artifact preview",
+            "artifactId": artifact["id"],
+            "artifactType": artifact["type"],
+            "summary": artifact["metadata"].get("summary"),
+            "redacted": True,
+        }
+        return "utf-8", json.dumps(preview, sort_keys=True)
 
     def _sync_agent_state(self, analysis_id: str) -> None:
         state = self._agent_states[analysis_id]

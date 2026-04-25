@@ -237,6 +237,7 @@ type AgentEvent = {
 - `POST /api/analyses/{id}:cancel`：取消分析。
 - `POST /api/analyses/{id}:branch`：从 checkpoint 创建分支。
 - `GET /api/artifacts/{artifactId}`：下载或预览 artifact。
+- `GET /api/artifacts/{artifactId}/content`：获取受限、脱敏、带审计记录的 artifact 内容预览。
 - `GET /api/findings?analysisId=&projectId=&status=&severity=&limit=&offset=`：获取分页漏洞发现，支持分析级和项目级列表。
 - `PATCH /api/findings/{id}`：人工确认、调整严重度、补充说明。
 - `POST /api/reports`：生成报告。

@@ -1787,3 +1787,120 @@ Observed result:
 1. Add `GET /api/artifacts/{artifactId}/content` for non-report artifacts only after export authorization, audit-log action names, and redaction rules are finalized.
 2. Replace in-memory audit logs, reports, artifacts, and finding queries with persistence/object storage once RBAC and tenant checks are implemented.
 3. Add a persistence-facing repository interface for `AuditMockService` so future storage work can keep the public API contract stable.
+
+## 2026-04-25: P15 Audited Artifact Content Preview
+
+### Scope
+
+- Implemented `AuditMockService.get_artifact_content` for safe mock evidence artifact previews.
+- Added `GET /api/artifacts/{artifactId}/content` HTTP dispatch before the generic artifact metadata route.
+- Returned a redacted content envelope with `artifactId`, `analysisId`, `projectId`, `mediaType`, `filename`, `encoding`, `redacted`, `auditLogId`, and `content`.
+- Recorded each allowed preview as an `AuditLog` with action `artifact.content.read`.
+- Kept report content on `GET /api/reports/{reportId}/content` and rejected non-previewable artifacts so raw sample, PCAP, decompiler project, rootfs, object storage, Agent Server, and MCP export paths remain closed.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_mock_service.py`
+- `apps/audit-api/tests/test_server.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/oss/python/langgraph/overview`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+- `https://docs.langchain.com/langsmith/agent-server`
+- `https://docs.langchain.com/langsmith/server-mcp`
+
+Adopted conclusions:
+
+- Keep artifact content reads behind product `/api/*`; MCP and Agent Server native routes remain later integration/debug surfaces behind authorization.
+- Do not stream artifact content through SSE. `artifact.created` remains metadata-only, and content reads are explicit audited API calls.
+- Sensitive artifact export remains a future approval/interrupt workflow. P15 only proves redacted preview and audit log behavior.
+- Persistence and object storage remain later work; current in-memory content preview keeps the API envelope stable for frontend work.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "artifact.*content|artifacts/.*/content|get_artifact_content|ArtifactContent|artifact.content.read|artifact-export|approval_required|redacted|content read|sensitive artifact|report.content.read|get_report_content" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S
+find apps libs docs -maxdepth 5 \( -iname '*artifact*content*' -o -iname '*content*' -o -iname '*artifact*' -o -iname '*audit*log*' \) -print | sort
+rg -n "get_artifact\(|get_report_content\(|list_audit_logs\(|_record_audit_log|_require_report_artifact|AuditLog|artifact.created|GET /api/artifacts/\{artifactId\}/content" apps/audit-api libs/audit-common docs/blueprints -S
+```
+
+Result:
+
+- Existing content implementation was report-only `get_report_content` plus shared `AuditLog`.
+- `GET /api/artifacts/{artifactId}/content` was still draft and no `get_artifact_content` service method or HTTP dispatch existed.
+- P15 extended `AuditMockService` and `AuditApiHandler`; no parallel content, artifact, Agent Server, MCP, storage, or worker module was added.
+
+### TDD Evidence
+
+Red targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_get_artifact_content_returns_redacted_payload_and_audit_log tests.test_mock_service.MockServiceTests.test_get_artifact_content_rejects_report_artifact tests.test_server.AuditApiHandlerRouteTests.test_get_artifact_content_dispatches_and_records_audit_log -v
+```
+
+Observed result before implementation:
+
+- Service tests errored with `AttributeError: 'AuditMockService' object has no attribute 'get_artifact_content'`.
+- HTTP route test failed with `HTTP Error 404: Not Found` because the generic artifact metadata route owned `/api/artifacts/*`.
+
+Green targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_get_artifact_content_returns_redacted_payload_and_audit_log tests.test_mock_service.MockServiceTests.test_get_artifact_content_rejects_report_artifact tests.test_server.AuditApiHandlerRouteTests.test_get_artifact_content_dispatches_and_records_audit_log -v
+```
+
+Observed result after implementation:
+
+- 3 targeted tests ran and passed.
+
+### Files Changed
+
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `apps/audit-api/audit_api/server.py`
+- Updated `apps/audit-api/tests/test_mock_service.py`
+- Updated `apps/audit-api/tests/test_server.py`
+- Updated `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Validation
+
+Final validation commands:
+
+```bash
+cd apps/audit-api && make format && make lint && make test
+rg -n "P15|artifact\.content\.read|get_artifact_content|GET /api/artifacts/\{artifactId\}/content|Artifact Content Preview" docs/blueprints apps/audit-api -S
+rg -n '``[^`\n]+``' apps/audit-api docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md docs/blueprints/binary-audit-platform-frontend-blueprint.md -S
+```
+
+Observed result:
+
+- `make format` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make lint` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make test` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest discover tests -v`; 50 API tests ran and passed.
+- P15 keyword search returned the updated code, tests, OpenAPI contract, event note, decision log, feature registry, frontend blueprint, and progress log.
+- Inline Sphinx-style double-backtick search in touched code and blueprint paths returned no matches.
+
+### Next Recommended Tasks
+
+1. Add a persistence-facing repository interface for `AuditMockService` so future storage work can keep the public API contract stable.
+2. Add approval request scaffolding for sensitive artifact export attempts before enabling non-preview artifact downloads.
+3. Replace in-memory audit logs, reports, artifacts, and finding queries with persistence/object storage once RBAC and tenant checks are implemented.

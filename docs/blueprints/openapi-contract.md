@@ -229,7 +229,7 @@ AuditLog:
   createdAt: string
 ```
 
-Mock actions currently include `report.content.read`. Future production actions will cover sensitive artifact downloads, approval decisions, policy denials, analyst finding updates, and administrative changes.
+Mock actions currently include `report.content.read` and `artifact.content.read`. Future production actions will cover sensitive artifact downloads, approval decisions, policy denials, analyst finding updates, and administrative changes.
 
 ## 3. API Endpoints
 
@@ -366,9 +366,27 @@ GET /api/artifacts/{artifactId}
 GET /api/artifacts/{artifactId}/content
 ```
 
-P10 mock status: `GET /api/artifacts/{artifactId}` is implemented for in-memory metadata only. `GET /api/artifacts/{artifactId}/content` remains draft until object storage and artifact authorization are present.
+P10 mock status: `GET /api/artifacts/{artifactId}` is implemented for in-memory metadata only.
+
+P15 mock status: `GET /api/artifacts/{artifactId}/content` returns a redacted preview envelope for safe mock evidence artifacts only and records an `AuditLog` entry with action `artifact.content.read`. Report artifacts continue to use `GET /api/reports/{reportId}/content`. Original samples, PCAPs, decompiler projects, rootfs exports, credential-like artifacts, object storage downloads, Agent Server routes, and MCP exposure remain out of scope.
 
 Artifact access must validate tenant, project, analysis, and user permission. Downloading original samples, PCAPs, decompiler projects, reports, or credential-like artifacts must create an audit log entry.
+
+`GET /api/artifacts/{artifactId}/content` mock response:
+
+```json
+{
+  "artifactId": "artifact_analysis_123_evidence",
+  "analysisId": "analysis_123",
+  "projectId": "project_123",
+  "mediaType": "application/json",
+  "filename": "mock-static-evidence.json",
+  "encoding": "utf-8",
+  "redacted": true,
+  "auditLogId": "audit_1",
+  "content": "{\"artifactId\":\"artifact_analysis_123_evidence\",\"artifactType\":\"vuln.finding_evidence\",\"redacted\":true,\"summary\":\"...\",\"title\":\"Mock artifact preview\"}"
+}
+```
 
 ### 3.7 Findings
 
@@ -472,7 +490,7 @@ The first `apps/audit-api` implementation is an in-memory mock for parallel fron
 
 - Public service methods accept and return camelCase dictionaries matching this contract.
 - Internal resources are stored with Python snake_case keys matching `libs/audit-common`.
-- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage.
+- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/artifacts/{artifactId}/content`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage.
 - Mock `POST /api/samples:upload` accepts JSON sample metadata for frontend and agent parallel development; production multipart upload parsing remains deferred.
 - SSE formatting is represented by `format_sse_event`; authentication, RBAC, persistent storage, native Agent Server run creation, and MCP exposure are intentionally deferred.
 

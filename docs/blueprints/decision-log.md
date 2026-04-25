@@ -208,3 +208,16 @@
   - https://docs.langchain.com/langsmith/agent-server
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/persistence
+
+## 2026-04-25: Artifact Content Preview Is Audited And Limited
+
+- Decision: P15 implements `GET /api/artifacts/{artifactId}/content` only for safe mock evidence artifact previews, returning redacted content and recording `artifact.content.read` in `AuditLog`.
+- Reason: frontend ArtifactViewer needs a content contract, but generic artifact export is a sensitive boundary. The mock should prove audit logging and redaction without opening raw samples, PCAPs, decompiler projects, rootfs exports, Agent Server routes, or MCP routes.
+- Boundary: report artifacts keep using `GET /api/reports/{reportId}/content`; non-previewable artifacts return an approval-required error until export approval, object storage authorization, and redaction policy are implemented.
+- Official docs: LangGraph streaming/state and persistence remain integration sources, while artifact content reads stay product-owned API operations with explicit audit records.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/persistence
+  - https://docs.langchain.com/oss/python/langgraph/interrupts

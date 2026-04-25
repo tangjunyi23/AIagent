@@ -185,6 +185,8 @@ P12 mock status: `GET /api/reports/{reportId}/content` records a structured `Aud
 
 P13 mock status: repeated report generation emits one `artifact.created` event per report version. No new SSE event type is introduced for report regeneration; clients should refresh report artifact metadata and inspect `metadata.versionNumber`, `metadata.latest`, `metadata.previousReportId`, and `metadata.supersededByReportId`.
 
+P15 mock status: `GET /api/artifacts/{artifactId}/content` records `artifact.content.read` in audit logs instead of emitting content over SSE. `artifact.created` remains metadata-only and no new event type is introduced for content reads.
+
 ### 4.8 Finding Events
 
 ```yaml

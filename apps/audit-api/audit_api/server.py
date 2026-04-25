@@ -106,6 +106,16 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             except KeyError as exc:
                 self._send_error(404, "not_found", str(exc))
             return
+        if path.startswith("/api/artifacts/") and path.endswith("/content"):
+            artifact_id = path.removeprefix("/api/artifacts/").removesuffix("/content")
+            actor_id = self.headers.get("x-actor-id", "mock_analyst")
+            try:
+                self._send_json(200, self.service.get_artifact_content(artifact_id, actor_id))
+            except ValueError as exc:
+                self._send_error(403, "approval_required", str(exc))
+            except KeyError as exc:
+                self._send_error(404, "not_found", str(exc))
+            return
         if path.startswith("/api/artifacts/"):
             artifact_id = path.removeprefix("/api/artifacts/")
             try:
