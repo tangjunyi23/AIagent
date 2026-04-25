@@ -23,8 +23,8 @@
 
 | Feature | Entry File | Status | Public Names |
 | --- | --- | --- | --- |
-| Business API draft | `docs/blueprints/openapi-contract.md` | draft | `Project`, `Sample`, `Analysis`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditPolicy`, `AuditLog` |
-| SSE event draft | `docs/blueprints/event-schema.md` | draft | `AuditEvent`, `AuditEventType`, `RunPayload`, `StateSnapshotPayload`, `AgentPayload`, `ToolPayload`, `FindingPayload`, `ApprovalPayload` |
+| Business API draft | `docs/blueprints/openapi-contract.md` | draft | `Project`, `Sample`, `Analysis`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditPolicy`, `AuditLog`, `StructuredResult` |
+| SSE event draft | `docs/blueprints/event-schema.md` | draft | `AuditEvent`, `AuditEventType`, `RunPayload`, `StateSnapshotPayload`, `AgentPayload`, `ToolPayload`, `FindingPayload`, `StructuredResultPayload`, `ApprovalPayload` |
 | Progress log | `docs/blueprints/implementation-progress.md` | active | M0 documentation tracking |
 | Decision log | `docs/blueprints/decision-log.md` | active | architecture decision records |
 | Shared schema package | `libs/audit-common/audit_common/schemas.py` | implemented | `Project`, `Sample`, `Analysis`, `AuditPolicy`, `ArtifactRef`, `Finding`, `ToolExecution`, `ApprovalRequest`, `AuditEvent`, `AuditLog`, `ErrorEnvelope` |
@@ -75,6 +75,7 @@
 | `POST /api/artifacts/{artifactId}:request-export` | mock implemented approval scaffold | Create or reuse pending `artifact-export` `ApprovalRequest`; does not return artifact bytes |
 | `GET /api/findings` | mock implemented | Query mock findings by `analysisId` or `projectId` with optional `status`/`severity` filters and `limit`/`offset` pagination |
 | `PATCH /api/findings/{findingId}` | mock implemented | Analyst status/severity updates and `finding.updated` event |
+| `GET /api/results` | draft | Query structured results such as Flag extraction, teaching PoC, IoC report, YARA rule, SBOM, and audit summary |
 | `POST /api/reports` | mock implemented | Generate versioned mock report artifact metadata |
 | `GET /api/reports/{reportId}` | mock implemented | Fetch mock report artifact metadata |
 | `GET /api/reports/{reportId}/content` | mock implemented | Return redacted mock report content and record `report.content.read` audit log |
@@ -106,6 +107,8 @@
 | `artifact.created` | mock implemented | Artifact service / worker normalizer |
 | `finding.created` | draft | Agent verifier / finding service |
 | `finding.updated` | mock implemented | Finding service / analyst action |
+| `result.created` | draft | Result builder / artifact normalizer |
+| `result.updated` | draft | Result service / analyst review |
 | `approval.requested` | mock implemented | Policy engine / interrupt bridge / artifact export scaffold |
 | `approval.approved` | mock implemented | Approval service |
 | `approval.rejected` | mock implemented | Approval service |
@@ -120,6 +123,10 @@
 | `static.*` | draft | `static.objdump`, `static.readelf`, `static.ghidra.decompile`, `static.jadx.project` |
 | `firmware.*` | draft | `firmware.binwalk.tree`, `firmware.unblob.tree`, `firmware.rootfs`, `firmware.emba.report` |
 | `dynamic.*` | draft | `dynamic.pcap`, `dynamic.http_archive`, `dynamic.command_output` |
+| `ctf.*` | draft | `ctf.flag_result` |
+| `exploit.*` | draft | `exploit.teaching_poc` |
+| `threat.*` | draft | `threat.ioc_report`, `threat.yara_rule`, `threat.behavior_chain` |
+| `code.*` | draft | `code.audit_summary` |
 | `vuln.*` | draft | `vuln.finding_evidence` |
 | `report.*` | draft | `report.markdown`, `report.html`, `report.pdf` |
 
@@ -167,3 +174,5 @@
 | 2026-04-25 | `find apps/audit-api apps/audit-web apps/audit-agents libs/audit-common docs/blueprints -maxdepth 6 \( -iname '*branch*' -o -iname '*checkpoint*' -o -iname '*fork*' \) -print \| rg -v 'node_modules|dist'` | No existing product branch module or route file was present; no parallel lifecycle module was added. |
 | 2026-04-25 | `rg -n "Firmware Analysis Workbench\|Binary Audit Platform\|思而听\|中文\|Chinese\|Localization\|localization\|i18n\|Audit Web entry\|AnalysisTimeline\|HumanGateCard\|ArtifactViewer\|FindingBoard" apps/audit-web docs/blueprints apps/audit-api apps/audit-agents libs/audit-common -S --glob '!**/node_modules/**' --glob '!**/dist/**'` | Chinese UI localization belongs to existing Audit Web entry, component, and `workbenchData` owners; no existing i18n module or duplicate Chinese workbench was found. |
 | 2026-04-25 | `find apps/audit-web docs/blueprints -maxdepth 6 \( -iname '*locale*' -o -iname '*i18n*' -o -iname '*translation*' -o -iname '*workbench*' -o -iname '*analysis-timeline*' -o -iname '*human-gate*' -o -iname '*artifact*' -o -iname '*finding*' \) -print \| sort` | Only existing Audit Web components and data owner matched; P22 extends those owners instead of adding a parallel localization or component tree. |
+| 2026-04-25 | `rg -n "ELF\|PE\|Mach-O\|APK\|Firmware\|固件\|CTF\|恶意软件\|移动\|代码审计\|IoC\|YARA\|Flag\|flag\|PoC\|教学\|threat\|威胁情报\|artifact type\|artifact 类型\|成果\|输出" docs/blueprints apps libs -S --glob '!**/node_modules/**' --glob '!**/dist/**'` | Existing blueprints already mentioned several formats/scenarios, but structure was firmware-heavy and did not reserve first-class structured results. P23 updates the existing backend/frontend/contract docs instead of adding a parallel product blueprint. |
+| 2026-04-25 | `find docs/blueprints apps libs -maxdepth 6 \( -iname '*artifact*' -o -iname '*report*' -o -iname '*ioc*' -o -iname '*yara*' -o -iname '*flag*' -o -iname '*poc*' -o -iname '*format*' -o -iname '*scenario*' \) -print \| sort \| rg -v 'node_modules|dist'` | No product result module or structured result contract file existed. P23 reserves `StructuredResult`, `GET /api/results`, `result.*`, and new artifact prefixes in the existing contract documents only. |

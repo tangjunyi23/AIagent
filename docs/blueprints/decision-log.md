@@ -310,3 +310,18 @@
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/interrupts
   - https://docs.langchain.com/oss/python/langgraph/persistence
+
+## 2026-04-25: Platform Scope Is Multi-Format And Multi-Scenario
+
+- Decision: P23 adjusts the backend and frontend blueprints so ELF, PE, Mach-O, APK, firmware, and other binary inputs are first-class peers. CTF solving, security risk analysis, malware analysis, firmware reverse engineering, code audit, and mobile security are modeled as scenario routes over those formats.
+- Reason: firmware simulation had too much conceptual weight in earlier blueprint sections. The platform goal is a balanced binary vulnerability audit platform that can produce multiple structured outputs, including Flag extraction results, teaching PoCs, IoC threat intelligence reports, YARA rules, findings, SBOM, and reports.
+- Boundary: this is a blueprint and contract-reservation change only. It does not implement `GET /api/results`, `result.*` SSE emission, new worker adapters, real malware execution, CTF remote validation, firmware simulation, or any dangerous dynamic action.
+- Official docs: LangGraph StateGraph, streaming, persistence, and interrupts support multi-step stateful workflows with resumable human gates. LangSmith Agent Server and MCP remain backend integration targets behind the product API, not direct frontend routes.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/langsmith/server-mcp
+  - https://docs.langchain.com/oss/python/langgraph/overview
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/interrupts
+  - https://docs.langchain.com/oss/python/langgraph/persistence

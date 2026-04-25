@@ -77,6 +77,8 @@ AuditEventType:
   - artifact.created
   - finding.created
   - finding.updated
+  - result.created
+  - result.updated
   - approval.requested
   - approval.approved
   - approval.rejected
@@ -209,6 +211,23 @@ P10 mock status: `PATCH /api/findings/{findingId}` emits `finding.updated` with 
 
 P14 mock status: project-level finding filters and pagination are handled by `GET /api/findings`; no new SSE event type is introduced. `FindingBoard` should continue refreshing from `finding.created` and `finding.updated` events, then re-query the paginated list endpoint.
 
+### 4.8 Structured Result Events
+
+```yaml
+StructuredResultPayload:
+  resultId: string
+  kind: flag-result | teaching-poc | ioc-report | yara-rule | vulnerability-finding | sbom | audit-summary
+  status: draft | needs-review | verified | rejected
+  title: string
+  artifactIds: string[]
+  findingIds: string[]
+  confidence: number
+```
+
+Used by `result.created` and `result.updated`.
+
+P23 blueprint status: structured results are reserved for future implementation so the frontend can display Flag extraction, teaching PoC, IoC reports, YARA rules, SBOM, and code-audit summaries as first-class outputs. Existing mock SSE producers do not emit `result.*` yet; current clients should continue to rely on `artifact.created` and `finding.*` until the result endpoint is implemented.
+
 ### 4.9 Approval Events
 
 ```yaml
@@ -255,6 +274,7 @@ ErrorPayload:
 - `HumanGateCard`: consumes `approval.requested`, `approval.approved`, and `approval.rejected`.
 - `ArtifactViewer`: refreshes on `artifact.created`.
 - `FindingBoard`: refreshes on `finding.created` and `finding.updated`.
+- `ResultCenter`: consumes `result.created` and `result.updated`, then re-queries `GET /api/results`.
 - `ToolConsole`: consumes `tool.output_chunk` and falls back to log artifacts.
 
 P20 frontend status: `apps/audit-web` implements the first local mock mapping for `AnalysisTimeline`, `HumanGateCard`, `ArtifactViewer`, and `FindingBoard`. The mock workbench renders `run.queued`, `agent.started`, `approval.requested`, `run.interrupted`, `approval.approved`, `approval.rejected`, and `run.cancelled` event flows. Artifact content reads and approval decisions are shown through `AuditLog` records rather than new SSE event types, matching the backend mock contract.

@@ -8,7 +8,7 @@
 - LangGraph `/assistants`, `/threads`, `/runs`, and `/mcp` capabilities are integration targets, not directly exposed product APIs.
 - Every high-risk action must create an `ApprovalRequest` and must be resumable through LangGraph interrupt semantics.
 - Every high-confidence or high-severity `Finding` must reference at least one evidence `ArtifactRef`.
-- Large logs, files, PCAPs, decompiler projects, and reports are stored as artifacts; events carry references, not bulk payloads.
+- Large logs, files, PCAPs, decompiler projects, Flag results, teaching PoCs, IoC reports, YARA rules, and reports are stored as artifacts or structured results; events carry references, not bulk payloads.
 
 ## 2. Resource Model
 
@@ -135,6 +135,12 @@ firmware.qemu.snapshot
 dynamic.pcap
 dynamic.http_archive
 dynamic.command_output
+ctf.flag_result
+exploit.teaching_poc
+threat.ioc_report
+threat.yara_rule
+threat.behavior_chain
+code.audit_summary
 vuln.finding_evidence
 report.markdown
 report.html
@@ -230,6 +236,26 @@ AuditLog:
 ```
 
 Mock actions currently include `report.content.read`, `artifact.content.read`, `approval.approved`, and `approval.rejected`. Future production actions will cover sensitive artifact downloads, policy denials, analyst finding updates, and administrative changes.
+
+### 2.11 StructuredResult
+
+```yaml
+StructuredResult:
+  id: string
+  analysisId: string
+  projectId: string
+  kind: flag-result | teaching-poc | ioc-report | yara-rule | vulnerability-finding | sbom | audit-summary
+  status: draft | needs-review | verified | rejected
+  title: string
+  artifactIds: string[]
+  findingIds: string[]
+  confidence: number
+  safetyNotes: string[]
+  createdAt: string
+  updatedAt: string
+```
+
+`StructuredResult` is the product-owned view model for outputs such as CTF Flag extraction, teaching PoC generation, IoC threat intelligence reports, YARA rules, SBOM summaries, and code-audit summaries. Content remains in artifacts; this resource keeps relationships, confidence, review status, and safety/export notes queryable.
 
 ## 3. API Endpoints
 
@@ -487,7 +513,40 @@ P14 mock status: `GET /api/findings` returns a paginated envelope and supports `
 }
 ```
 
-### 3.8 Reports
+### 3.8 Structured Results
+
+```http
+GET /api/results?analysisId={analysisId}&kind={kind}&status={status}
+```
+
+This planned endpoint returns product-owned structured outputs for CTF, malware, code-audit, mobile, firmware, and risk workflows. It does not embed large content; clients fetch linked artifacts through artifact endpoints.
+
+`GET /api/results` response:
+
+```json
+{
+  "items": [
+    {
+      "id": "result_analysis_123_flag",
+      "analysisId": "analysis_123",
+      "projectId": "project_123",
+      "kind": "flag-result",
+      "status": "verified",
+      "title": "Local CTF flag extraction",
+      "artifactIds": ["artifact_analysis_123_flag_log"],
+      "findingIds": [],
+      "confidence": 0.98,
+      "safetyNotes": ["authorized-local-target"],
+      "createdAt": "2026-04-25T00:00:00Z",
+      "updatedAt": "2026-04-25T00:00:00Z"
+    }
+  ]
+}
+```
+
+P23 blueprint status: `GET /api/results` is reserved for future implementation. Until then, Flag results, teaching PoCs, IoC reports, YARA rules, and code-audit summaries remain represented as artifact types plus report sections.
+
+### 3.9 Reports
 
 ```http
 POST /api/reports
@@ -529,7 +588,7 @@ P12 mock status: `GET /api/reports/{reportId}/content` returns a redacted mock c
 }
 ```
 
-### 3.9 Audit Logs
+### 3.10 Audit Logs
 
 ```http
 GET /api/audit-logs?analysisId={analysisId}
@@ -539,14 +598,14 @@ P12 mock status: `GET /api/audit-logs?analysisId={analysisId}` returns in-memory
 
 P18 mock status: approval approve/reject decisions also create `AuditLog` records with actions `approval.approved` and `approval.rejected`, resource type `approval`, and metadata containing the interrupt ID and approval action.
 
-### 3.10 Mock API Implementation Notes
+### 3.11 Mock API Implementation Notes
 
 The first `apps/audit-api` implementation is an in-memory mock for parallel frontend and agent development:
 
 - Public service methods accept and return camelCase dictionaries matching this contract.
 - Internal resources are stored with Python snake_case keys matching `libs/audit-common`.
 - P17 mock status: `AuditMockService` stores resources through an injected `AuditRepository` boundary. The current implementation uses `InMemoryAuditRepository`; persistence, object storage, RBAC, Agent Server clients, MCP routes, and LangGraph checkpointer integration remain deferred.
-- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `POST /api/analyses/{analysisId}:cancel`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/artifacts/{artifactId}/content`, `POST /api/artifacts/{artifactId}:request-export`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage.
+- `POST /api/projects`, `GET /api/projects/{projectId}`, `POST /api/samples:upload`, `GET /api/samples/{sampleId}`, `POST /api/analyses`, `GET /api/analyses/{analysisId}`, `POST /api/analyses/{analysisId}/runs`, `POST /api/analyses/{analysisId}/runs:resume`, `POST /api/analyses/{analysisId}:cancel`, `GET /api/analyses/{analysisId}/state`, `GET /api/analyses/{analysisId}/events`, `GET /api/analyses/{analysisId}/interrupts`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:approve`, `POST /api/analyses/{analysisId}/interrupts/{interruptId}:reject`, `GET /api/artifacts/{artifactId}`, `GET /api/artifacts/{artifactId}/content`, `POST /api/artifacts/{artifactId}:request-export`, `GET /api/findings`, `PATCH /api/findings/{findingId}`, `POST /api/reports`, `GET /api/reports/{reportId}`, `GET /api/reports/{reportId}/content`, and `GET /api/audit-logs` have mock HTTP handler coverage. `GET /api/results` is reserved but not implemented in the mock handler yet.
 - Mock `POST /api/samples:upload` accepts JSON sample metadata for frontend and agent parallel development; production multipart upload parsing remains deferred.
 - SSE formatting is represented by `format_sse_event`; authentication, RBAC, persistent storage, native Agent Server run creation, and MCP exposure are intentionally deferred.
 - P20 frontend status: `apps/audit-web` currently mirrors this API contract with local typed mock data in `src/lib/workbenchData.ts`. It renders analysis lifecycle, interrupts, artifact preview, findings, report metadata, and audit logs without requiring the Python mock API to run. The frontend must continue to call product `/api/*` routes when live API integration is added; it must not call Agent Server or MCP routes directly.

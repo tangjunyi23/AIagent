@@ -2713,6 +2713,107 @@ Observed result:
 2. Create `apps/audit-workers` tool execution placeholder interfaces now that analysis lifecycle branch/cancel behavior is stable.
 3. Add API query support for branch lineage metadata once a persistent repository replaces in-memory storage.
 
+## 2026-04-25: P23 Multi-Format Multi-Scenario Blueprint Rebalance
+
+### Scope
+
+- Rebalanced the backend blueprint away from firmware-simulation-heavy planning.
+- Made ELF, PE, Mach-O, APK, firmware, archive, and unknown binaries first-class input formats.
+- Made CTF solving, security risk analysis, malware analysis, firmware reverse engineering, code audit, and mobile security first-class scenario routes.
+- Added `StructuredResult` as the planned product-owned result view model.
+- Reserved structured output artifacts for Flag extraction results, teaching PoCs, IoC reports, YARA rules, behavior chains, and code-audit summaries.
+- Reserved `GET /api/results` and `result.created` / `result.updated` for future implementation.
+- Updated the frontend blueprint with a multi-format workbench and `ResultCenter` for structured results.
+- Did not implement runtime API routes, SSE producers, agents, workers, frontend components, dynamic analysis, malware execution, CTF remote verification, or firmware simulation.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-web/package.json`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/langsmith/agent-server`
+- `https://docs.langchain.com/langsmith/server-mcp`
+- `https://docs.langchain.com/oss/python/langgraph/overview`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+
+Adopted conclusions:
+
+- LangGraph StateGraph and persistence support long-running, stateful, multi-step workflows; a format router plus scenario router is the right blueprint shape.
+- Streaming remains event/reference based; large Flag, PoC, IoC, YARA, and report content should be artifact/result references rather than event payload bulk.
+- Interrupts remain the approval primitive for high-risk dynamic actions across all scenarios, including firmware simulation, malware execution, exploit verification, CTF remote validation, and sensitive export.
+- Agent Server and MCP are integration targets behind product `/api/*`; frontend must not call native Agent Server or MCP routes directly.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "ELF|PE|Mach-O|APK|Firmware|固件|CTF|恶意软件|移动|代码审计|IoC|YARA|Flag|flag|PoC|教学|threat|威胁情报|artifact type|artifact 类型|成果|输出" docs/blueprints apps libs -S --glob '!**/node_modules/**' --glob '!**/dist/**'
+find docs/blueprints apps libs -maxdepth 6 \( -iname '*artifact*' -o -iname '*report*' -o -iname '*ioc*' -o -iname '*yara*' -o -iname '*flag*' -o -iname '*poc*' -o -iname '*format*' -o -iname '*scenario*' \) -print | sort | rg -v 'node_modules|dist'
+rg -n "完整固件|固件深度|firmware|Firmware Agent|worker-firmware|firmware_subgraph|qemu|EMBA|QEMU|固件 pipeline|固件流程|固件分析专用" docs/blueprints/binary-audit-platform-backend-blueprint.md docs/blueprints/binary-audit-platform-frontend-blueprint.md -S
+```
+
+Result:
+
+- Existing backend and frontend blueprint documents already owned format/scenario planning.
+- Existing contracts had `ArtifactRef`, `Finding`, report artifacts, and event envelopes, but no first-class `StructuredResult`, `GET /api/results`, `result.*` events, or dedicated Flag/PoC/IoC/YARA artifact prefixes.
+- Firmware sections were present and relatively prominent; P23 updates the existing blueprint sections instead of creating a parallel product direction.
+
+### Files Changed
+
+- Updated `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- Updated `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+No new source file was created in P23 because this is a blueprint and contract-reservation change. Creating new runtime modules before an implementation task would duplicate or over-specify owners already reserved in `apps/audit-api`, `apps/audit-agents`, `apps/audit-workers`, and `apps/audit-web`.
+
+### Frontend Display
+
+- Entry: `apps/audit-web/src/App.tsx`
+- Hot reload URL: `http://127.0.0.1:5173/`
+- Frontend app code was not changed in P23 because this round only changes backend/frontend blueprints and draft contracts. The frontend blueprint now reserves `ResultCenter`, but no runtime component was implemented.
+- Backend/mock API requirement: not required for this documentation round.
+- Dev server status: existing Vite dev server on `5173` remains the current preview endpoint.
+
+### Validation
+
+Commands run:
+
+```bash
+rg -n "StructuredResult|GET /api/results|result\.created|result\.updated|ctf\.flag_result|exploit\.teaching_poc|threat\.ioc_report|threat\.yara_rule|code\.audit_summary|Flag|教学 PoC|IoC|YARA" docs/blueprints -S
+rg -n "M3|固件深度|多场景深度|ELF/PE/APK/固件|ELF/PE/Mach-O/APK/固件" docs/blueprints/binary-audit-platform-frontend-blueprint.md docs/blueprints/binary-audit-platform-backend-blueprint.md -S
+rg -n '``[^`\n]+``' docs/blueprints/binary-audit-platform-backend-blueprint.md docs/blueprints/binary-audit-platform-frontend-blueprint.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/feature-registry.md docs/blueprints/decision-log.md docs/blueprints/implementation-progress.md -S
+curl -I --max-time 5 http://127.0.0.1:5173/
+```
+
+Observed result:
+
+- New structured result names and artifact prefixes appear in backend, frontend, OpenAPI, SSE, registry, decision, and progress docs.
+- Old frontend `M3：固件深度分析` is replaced with `M3：多场景深度成果`.
+- Inline Sphinx-style double-backtick search returns no matches.
+- Dev server returns `HTTP/1.1 200 OK`.
+
+### Next Recommended Tasks
+
+1. Implement the thin frontend API adapter that can switch between local mock data and the Python mock `/api/*` service.
+2. Add mock `StructuredResult` schema and `GET /api/results` in `apps/audit-api`, then show it in a frontend `ResultCenter`.
+3. Create `apps/audit-workers` placeholder interfaces for balanced binary/mobile/malware/firmware/CTF tool execution.
+
 ## 2026-04-25: P22 Chinese Audit Web Branding And Copy
 
 ### Scope

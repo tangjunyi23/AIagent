@@ -2,14 +2,16 @@
 
 ## 1. 产品定位
 
-将 LangGraph 二次开发为“二进制审计平台”的可视化工作台。前端负责承接样本上传、分析编排、人工确认、实时进度、证据链查看、漏洞验证、报告交付和团队协作，后端负责多 agent 编排、真实工具执行与审计数据持久化。
+将 LangGraph 二次开发为“二进制审计平台”的可视化工作台。前端负责承接样本上传、格式/场景选择、分析编排、人工确认、实时进度、证据链查看、漏洞验证、结构化成果和报告交付，后端负责多 agent 编排、真实工具执行与审计数据持久化。
 
-目标用户包括 CTF 选手、安全研究员、恶意软件分析师、固件逆向工程师、移动安全工程师、代码审计人员和企业安全团队。
+目标用户包括 CTF 选手、安全研究员、恶意软件分析师、固件逆向工程师、移动安全工程师、代码审计人员和企业安全团队。产品体验必须平均覆盖 ELF、PE、Mach-O、APK、固件等主流二进制格式，并覆盖 CTF 解题、安全风险分析、恶意软件分析、固件逆向、代码审计、移动安全等场景；固件模拟是可选高风险能力，不作为默认中心路径。
 
 ## 2. 设计原则
 
 - **任务驱动**：用户从“样本”或“目标场景”进入，而不是从单个工具进入。
+- **格式与场景均衡**：上传后先展示格式识别结果，再让用户选择 CTF、风险分析、恶意软件、固件逆向、代码审计或移动安全目标，避免把所有任务导向固件 pipeline。
 - **证据优先**：所有 AI 结论必须能关联到工具输出、反编译片段、污点路径、PCAP、HTTP 请求、日志或人工备注。
+- **成果结构化**：Flag、教学 PoC、IoC 报告、YARA 规则、漏洞发现、SBOM 和最终报告都必须以 artifact/result 形式展示，不能只放在自然语言总结里。
 - **可中断可恢复**：对接 LangGraph thread/run/checkpoint 语义，任何长任务都能暂停、恢复、重放和分支分析。
 - **人机协同**：危险动作、动态攻击、模拟网络暴露、恶意样本执行、漏洞利用验证必须有人工审批节点。
 - **多视图联动**：文件、函数、图、日志、时间线、漏洞、报告之间通过 artifact ID、address、symbol、CVE/CWE、request ID 串联。
@@ -49,6 +51,7 @@ apps/audit-web/
     report-builder/
     tool-console/
     vuln-board/
+    result-center/
   features/
     auth/
     projects/
@@ -56,9 +59,12 @@ apps/audit-web/
     analyses/
     agents/
     artifacts/
+    ctf/
     firmware/
     mobile/
     malware/
+    code-audit/
+    threat-intel/
     reports/
     settings/
   lib/
@@ -84,8 +90,9 @@ apps/audit-web/
 
 - 指标：样本总数、进行中分析、已确认漏洞、待人工审批、工具失败率、平均分析时长。
 - 最近任务：按 run 状态展示 `queued/running/interrupted/succeeded/failed/cancelled`。
-- 风险概览：CWE/CVE 分布、固件/移动/恶意样本分类、严重度趋势。
-- 队列状态：后端 queue worker、tool worker、sandbox worker、EMBA worker 健康度。
+- 风险概览：CWE/CVE 分布、ELF/PE/Mach-O/APK/固件/恶意样本分类、严重度趋势。
+- 成果概览：Flag 结果、教学 PoC、IoC 报告、YARA 规则、报告版本、待复核 finding。
+- 队列状态：后端 queue worker、binary reverse worker、mobile worker、malware worker、firmware worker、sandbox worker 健康度。
 
 ### 4.3 样本上传页
 
@@ -108,11 +115,12 @@ apps/audit-web/
 步骤：
 
 1. 选择样本和场景。
-2. 选择分析深度：快速 triage、标准审计、深度逆向、完整固件流水线。
-3. 选择工具链：Ghidra、IDA/idat、objdump/readelf、radare2、jadx、apktool、binwalk、unblob、Joern、EMBA、QEMU、Frida、tcpdump、nmap、Burp/ZAP。
+2. 选择分析深度：快速 triage、标准审计、深度逆向、受控动态验证。固件流水线只是固件场景的可选深度路径。
+3. 选择工具链：Ghidra、IDA/idat、objdump/readelf、dumpbin/pefile、otool/lipo、radare2、jadx、apktool、binwalk、unblob、Joern、YARA/capa、EMBA、QEMU、Frida、tcpdump、nmap、Burp/ZAP、pwntools。
 4. 选择 agent 策略：自动、保守、高并发、人工审批优先。
-5. 配置安全策略：沙箱网络、CPU/内存/超时、挂载只读、密钥脱敏、外连白名单。
-6. 提交后创建 backend `analysis`，后端映射为 LangGraph thread + run。
+5. 选择结构化成果目标：漏洞发现、Flag、教学 PoC、IoC 威胁情报、YARA 规则、SBOM、最终报告。
+6. 配置安全策略：沙箱网络、CPU/内存/超时、挂载只读、密钥脱敏、外连白名单。
+7. 提交后创建 backend `analysis`，后端映射为 LangGraph thread + run。
 
 ### 4.5 分析运行工作台
 
@@ -124,6 +132,7 @@ apps/audit-web/
 - **Timeline**：按 LangGraph 节点、工具任务、人工节点展示事件。
 - **Agents**：Supervisor、Triage、Reverse、Firmware、Mobile、Dynamic、Exploit、Report 等 agent 的 DAG 和当前状态。
 - **Artifacts**：文件树、反编译结果、日志、PCAP、截图、内存 dump、SBOM、报告。
+- **Results**：Flag 提取结果、教学 PoC、IoC 报告、YARA 规则、漏洞验证结论和导出状态。
 - **Static Analysis**：函数列表、字符串、导入导出、CFG、调用图、反编译代码。
 - **Taint Analysis**：source/sink、路径、污点图、证据片段、置信度。
 - **Dynamic Analysis**：模拟状态、服务列表、HTTP 请求、抓包、命令注入测试、攻击面。
@@ -145,7 +154,30 @@ apps/audit-web/
 - 对 LLM 长思考节点显示 token/时间预算和当前阶段。
 - 支持从任一 checkpoint 创建分支分析，保留原任务证据链。
 
-### 4.7 固件分析专用工作台
+### 4.7 多格式分析工作台
+
+前端应把格式识别与场景选择作为同级入口：
+
+- ELF：checksec、sections、imports、symbols、strings、Ghidra/idat 结果、ROP/CTF 入口。
+- PE：PE header、imports、resources、signatures、capa 能力标签、IoC 提取、恶意软件入口。
+- Mach-O：架构切片、load commands、签名/entitlements、Objective-C/Swift 符号、iOS/macOS 风险入口。
+- APK：Manifest、组件、权限、jadx/apktool、native `.so`、移动安全风险入口。
+- 固件：解包树、rootfs、服务/配置/脚本、EMBA/Joern/QEMU 可选入口。
+
+格式面板必须显示“推荐场景”和“推荐工具链”，但不能把所有样本默认引导到固件模拟。
+
+### 4.8 结构化成果中心
+
+成果中心按 artifact/result 展示，支持过滤、预览、复核和导出审批：
+
+- **Flag 提取结果**：flag 值、验证方式、本地/远程目标、证据日志、置信度。
+- **教学 PoC**：用途说明、影响范围、最小复现步骤、运行限制、关联漏洞和日志；默认面向本地样本或授权 CTF。
+- **IoC 威胁情报报告**：domain/IP/URL/hash/mutex/registry/file path、行为链、样本证据、置信度。
+- **YARA 规则**：规则源码、命中样本、字符串来源、误报风险、导出审批。
+- **漏洞发现**：CWE/CVE、影响组件、证据 artifact、验证状态、修复建议。
+- **最终报告**：版本、脱敏状态、导出格式和审批状态。
+
+### 4.9 固件分析工作台（同级能力）
 
 固件流程可视化为阶段化 pipeline：
 
@@ -160,20 +192,35 @@ apps/audit-web/
 - 模拟选择：用户选择跳过、局部服务模拟、完整系统 QEMU 模拟、EMBA 自动模拟。
 - 动态分析：端口列表、Web 路由、登录状态、HTTP 抓包、命令注入 payload 结果、弱口令尝试、文件读写证据。
 - EMBA 集成结果：模块输出、风险等级、CVE、配置风险、SBOM、固件组件清单。
+- 固件模拟入口默认折叠为高风险可选操作；用户可以跳过模拟，只保留静态、解包、EMBA 和报告成果。
 
-### 4.8 移动 APK 工作台
+### 4.10 移动 APK 工作台
 
 - APK 基础信息：包名、版本、签名、min/target SDK、权限、组件、导出组件。
 - jadx/apktool 输出浏览：Java/Kotlin 反编译、smali、Manifest、资源。
 - 风险视图：硬编码密钥、WebView 配置、导出组件、深链、加密误用、调试开关、证书校验绕过。
 - 动态视图：Frida hook 脚本、网络请求、文件访问、敏感 API 调用。
 
-### 4.9 CTF 工作台
+### 4.11 CTF 工作台
 
 - 模式：pwn、reverse、crypto 辅助、web-binary 混合。
 - 二进制面板：checksec、symbols、ROP gadgets、libc fingerprint、函数图、栈/堆利用假设。
-- Exploit 面板：生成 PoC、运行本地 Docker、远程验证、flag 证据。
+- Exploit 面板：生成教学 PoC、运行本地 Docker、远程验证、flag 证据。
+- 成果面板：展示 `ctf.flag_result`、solver、教学 PoC、运行日志和验证状态。
 - 安全限制：远程连接信息需显式确认，禁止对非授权目标执行攻击。
+
+### 4.12 恶意软件与威胁情报工作台
+
+- 静态 IoC：domain、IP、URL、hash、mutex、registry、file path。
+- 行为视图：进程、文件、网络、持久化、反沙箱、反调试、C2 指标。
+- 检测产物：YARA 规则、capa 能力、Sigma/SIEM 建议、IoC 威胁情报报告。
+- 动态运行默认禁用公网外连，需要审批和隔离网络。
+
+### 4.13 代码审计工作台
+
+- 支持 C/C++、JNI、CGI、Lua、PHP、Shell、Java/Kotlin 反编译源码和配置文件。
+- 展示 source/sink、污点路径、危险 API、配置风险、凭据泄露和依赖风险。
+- 输出代码审计摘要、漏洞证据和修复建议。
 
 ## 5. 前后端 API Contract
 
@@ -222,6 +269,19 @@ type AgentEvent = {
   payload: unknown;
   createdAt: string;
 };
+
+type StructuredResult = {
+  id: string;
+  analysisId: string;
+  kind: 'flag-result' | 'teaching-poc' | 'ioc-report' | 'yara-rule' | 'vulnerability-finding' | 'sbom' | 'audit-summary';
+  status: 'draft' | 'needs-review' | 'verified' | 'rejected';
+  title: string;
+  artifactIds: string[];
+  findingIds: string[];
+  confidence: number;
+  safetyNotes: string[];
+  createdAt: string;
+};
 ```
 
 ### 5.2 主要接口
@@ -239,6 +299,7 @@ type AgentEvent = {
 - `GET /api/artifacts/{artifactId}`：下载或预览 artifact。
 - `GET /api/artifacts/{artifactId}/content`：获取受限、脱敏、带审计记录的 artifact 内容预览。
 - `POST /api/artifacts/{artifactId}:request-export`：为敏感 artifact 导出创建人工审批请求，不直接下载内容。
+- `GET /api/results?analysisId=&kind=&status=`：获取结构化成果，包括 Flag、教学 PoC、IoC 报告、YARA 规则、SBOM 和审计摘要。
 - `GET /api/findings?analysisId=&projectId=&status=&severity=&limit=&offset=`：获取分页漏洞发现，支持分析级和项目级列表。
 - `PATCH /api/findings/{id}`：人工确认、调整严重度、补充说明。
 - `POST /api/reports`：生成报告。
@@ -273,8 +334,8 @@ type AgentEvent = {
 视图：
 
 - Supervisor 层：规划、分派、汇总。
-- Worker 层：triage、reverse、firmware、mobile、dynamic、exploit、report。
-- Tool 层：ghidra、idat、objdump、jadx、binwalk、joern、emba、qemu 等。
+- Worker 层：triage、reverse、ctf、malware、firmware、mobile、code-audit、dynamic、exploit、result-builder、report。
+- Tool 层：ghidra、idat、objdump、dumpbin、otool、jadx、binwalk、joern、yara、frida、emba、qemu 等。
 
 ### 6.3 `ArtifactViewer`
 
@@ -288,6 +349,17 @@ type AgentEvent = {
 - 图：CFG、CG、taint graph、agent DAG。
 - 网络：pcap、HTTP archive、Burp/ZAP JSON。
 - 报告：markdown/pdf/html/docx。
+- 成果：Flag JSON、教学 PoC markdown/python、IoC STIX/JSON、YARA 规则、SBOM、代码审计摘要。
+
+### 6.3.1 `ResultCenter`
+
+职责：统一展示结构化成果。
+
+视图：
+
+- 成果列表：按 `kind`、状态、置信度、审批要求筛选。
+- 成果详情：显示关联 artifact、finding、验证日志、脱敏状态和导出策略。
+- 安全操作：PoC 运行、YARA 导出、IoC 报告导出、Flag 远程验证都必须显示授权和审批状态。
 
 ### 6.4 `HumanGateCard`
 
@@ -322,6 +394,7 @@ type AgentEvent = {
 - `HumanGateCard`：展示 `firmware-emulation` interrupt/approval gate、风险摘要和结构化参数，面板标题为“人工审批”。
 - `ArtifactViewer`：展示脱敏 `vuln.finding_evidence` 预览和审计日志计数，面板标题为“证据文件”。
 - `FindingBoard`：展示中文 mock finding、严重度、状态、置信度和证据 artifact ID，面板标题为“漏洞发现”。
+- `ResultCenter`：规划中的结构化成果中心，后续用于展示 Flag、教学 PoC、IoC 报告、YARA 规则、SBOM 和审计摘要。
 
 交互：
 
@@ -364,7 +437,7 @@ type AgentEvent = {
 
 - 单元测试：schema parser、事件 reducer、权限判断、artifact renderer。
 - 组件测试：上传向导、HumanGateCard、FindingBoard、Timeline。
-- E2E：上传 ELF 快速 triage、上传 APK、固件标准流水线、interrupt 审批、报告导出。
+- E2E：上传 ELF/PE/Mach-O 快速 triage、上传 APK、上传固件静态流程、CTF Flag 成果、恶意软件 IoC/YARA 成果、interrupt 审批、报告导出。
 - Mock：使用 MSW 模拟 REST/SSE，后端未完成前由 OpenAPI schema 生成 mock 数据。
 
 ## 10. 并行开发里程碑
@@ -377,9 +450,9 @@ type AgentEvent = {
 
 ### M1：最小可用分析
 
-- 支持 ELF/PE/APK/固件上传和格式识别展示。
-- 支持创建分析、SSE 时间线、artifact 列表、基础报告。
-- 后端跑通 objdump/readelf/jadx/binwalk 至少一种工具链。
+- 支持 ELF/PE/Mach-O/APK/固件上传和格式识别展示。
+- 支持创建分析、SSE 时间线、artifact 列表、结构化成果列表、基础报告。
+- 后端跑通 objdump/readelf、dumpbin/pefile、otool、jadx、binwalk/unblob 中至少覆盖五类入口的轻量工具链。
 
 ### M2：多 agent 可视化与人工中断
 
@@ -387,10 +460,10 @@ type AgentEvent = {
 - 支持失败重试、取消、分支。
 - 后端接入 LangGraph checkpoint 与 interrupt。
 
-### M3：固件深度分析
+### M3：多场景深度成果
 
-- 固件 pipeline 工作台、EMBA 输出、Joern 污点图、模拟控制面上线。
-- 支持局部模拟和完整系统模拟的用户选择。
+- CTF Flag/教学 PoC、恶意软件 IoC/YARA、代码审计 source/sink、移动动态 hook、固件 EMBA/Joern 成果中心上线。
+- 固件局部模拟和完整系统模拟作为可选高风险能力上线，不高于其他场景。
 
 ### M4：报告与企业化
 
