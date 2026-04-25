@@ -247,3 +247,15 @@
   - https://docs.langchain.com/langsmith/server-mcp
   - https://docs.langchain.com/oss/python/langgraph/persistence
   - https://docs.langchain.com/oss/python/langgraph/streaming
+
+## 2026-04-25: Approval Decisions Are Audited Product Actions
+
+- Decision: P18 records `AuditLog` entries for `approval.approved` and `approval.rejected` inside `AuditMockService.decide_approval`.
+- Reason: approving or rejecting an interrupt changes the authorization state for dangerous actions and must be durable outside the SSE timeline before real interrupt resume integration.
+- Boundary: no new route, event type, schema field, approval module, Agent Server resume call, LangGraph `Command(resume=...)`, MCP route, or sandbox execution is introduced.
+- Official docs: LangGraph interrupts remain the later human-in-the-loop resume primitive; product APIs own authorization, audit logging, and policy evidence.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/oss/python/langgraph/interrupts
+  - https://docs.langchain.com/oss/python/langgraph/persistence

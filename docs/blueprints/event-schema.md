@@ -222,6 +222,8 @@ Used by `approval.requested`, `approval.approved`, and `approval.rejected`.
 
 P16 mock status: artifact export requests emit `approval.requested` with action `artifact-export` and `proposedParameters.artifactId`. Approval decisions are recorded by existing approval endpoints, but no artifact bytes are returned and no export worker is launched.
 
+P18 mock status: `approval.approved` and `approval.rejected` keep the same SSE payloads. The approval endpoints additionally persist `AuditLog` records; audit-log entries are queried through `GET /api/audit-logs` and are not emitted as separate timeline events.
+
 ### 4.10 Policy Denied
 
 ```yaml

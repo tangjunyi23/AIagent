@@ -2146,3 +2146,112 @@ Observed result:
 1. Add approval decision audit log entries for `approval.approved` and `approval.rejected` before real interrupt resume integration.
 2. Add a repository-backed branch/cancel mock API for `POST /api/analyses/{analysisId}:branch` or `POST /api/analyses/{analysisId}:cancel`.
 3. Replace in-memory repository internals with persistence/object storage adapters once RBAC and tenant checks are implemented.
+
+## 2026-04-25: P18 Approval Decision Audit Logs
+
+### Scope
+
+- Added structured `AuditLog` records when mock approvals are approved or rejected.
+- Reused existing `AuditMockService.decide_approval`, `_record_audit_log`, and `GET /api/audit-logs` behavior.
+- Preserved existing `approval.approved` and `approval.rejected` SSE event payloads, run resume behavior, state snapshots, and public route names.
+- Did not add real LangGraph interrupt resume, Agent Server calls, MCP routes, RBAC, persistence, sandbox execution, new event types, or new routes.
+
+No new files were created in this round because `AuditMockService` already owns approval decisions and the audit-log writer. A new approval audit module would duplicate the existing service boundary for this small closed-loop change.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/tests/test_mock_service.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/langsmith/agent-server`
+
+Adopted conclusions:
+
+- Approval decisions are product authorization events and should be durable product records, not only timeline SSE frames.
+- Real interrupt resume remains later work and must stay behind product authorization and audit boundaries.
+- Keep event payloads stable; audit-log reads remain an explicit API query rather than a new SSE event type.
+- MCP and Agent Server routes remain integration targets, not frontend business APIs.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "approval\.(approved|rejected)|approval decision|approval.*audit|audit.*approval|decide_approval|decision_reason|decided_by|_record_audit_log|list_audit_logs|AuditLog" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S
+find apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -maxdepth 5 \( -iname '*approval*' -o -iname '*audit*log*' -o -iname '*decision*' \) -print | sort
+```
+
+Result:
+
+- Existing approval decision owner is `AuditMockService.decide_approval`.
+- Existing audit-log writer is `AuditMockService._record_audit_log`.
+- No dedicated approval decision audit module existed; P18 extends the existing owner and avoids a parallel module.
+
+### TDD Evidence
+
+Red targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_approve_interrupt_updates_request_and_appends_event tests.test_mock_service.MockServiceTests.test_reject_interrupt_updates_request_and_appends_event -v
+```
+
+Observed result before implementation:
+
+- Both tests failed because `list_audit_logs(analysisId)` returned 0 records after approve/reject.
+
+Green targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_approve_interrupt_updates_request_and_appends_event tests.test_mock_service.MockServiceTests.test_reject_interrupt_updates_request_and_appends_event -v
+```
+
+Observed result after implementation:
+
+- 2 targeted approval decision tests ran and passed.
+
+### Files Changed
+
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `apps/audit-api/tests/test_mock_service.py`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Validation
+
+Final validation commands:
+
+```bash
+cd apps/audit-api && make format && make lint && make test
+rg -n "P18|approval\.approved|approval\.rejected|decision audit|approval decision|AuditLog" docs/blueprints apps/audit-api -S
+rg -n '``[^`\n]+``' apps/audit-api docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md -S
+```
+
+Observed result:
+
+- `make format` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make lint` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make test` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest discover tests -v`; 54 API tests ran and passed.
+- P18 keyword search returned the updated API code, tests, OpenAPI contract, event note, decision log, feature registry, and progress log.
+- Inline Sphinx-style double-backtick search in touched code and blueprint paths returned no matches.
+
+### Next Recommended Tasks
+
+1. Add a repository-backed branch/cancel mock API for `POST /api/analyses/{analysisId}:branch` or `POST /api/analyses/{analysisId}:cancel`.
+2. Replace in-memory repository internals with persistence/object storage adapters once RBAC and tenant checks are implemented.
+3. Add worker-side tool execution placeholder interfaces under `apps/audit-workers` once API lifecycle cancel/branch behavior is stable.

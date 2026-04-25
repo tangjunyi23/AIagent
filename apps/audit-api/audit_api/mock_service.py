@@ -438,9 +438,24 @@ class AuditMockService:
         approval["decided_by"] = str(body.get("decided_by", "mock_analyst"))
         approval["decision_reason"] = str(body.get("decision_reason", ""))
         event_type = "approval.approved" if status == "approved" else "approval.rejected"
+        analysis = self._analyses[analysis_id]
+        self._record_audit_log(
+            analysis=analysis,
+            actor_id=approval["decided_by"],
+            action=event_type,
+            resource_type="approval",
+            resource_id=approval["id"],
+            outcome="allowed",
+            reason=approval["decision_reason"],
+            metadata={
+                "interrupt_id": approval["interrupt_id"],
+                "approval_action": approval["action"],
+                "approval_status": approval["status"],
+            },
+        )
         self._events[analysis_id].append(
             self._create_approval_event(
-                self._analyses[analysis_id],
+                analysis,
                 approval,
                 event_type,
             )

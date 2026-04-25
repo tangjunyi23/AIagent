@@ -386,6 +386,14 @@ class MockServiceTests(unittest.TestCase):
             approval["decisionReason"], "Approved for isolated mock emulation."
         )
         self.assertEqual(service.list_events(str(analysis["id"]))[-1]["type"], "approval.approved")
+        logs = service.list_audit_logs(str(analysis["id"]))
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0]["actorId"], "analyst@example.com")
+        self.assertEqual(logs[0]["action"], "approval.approved")
+        self.assertEqual(logs[0]["resourceType"], "approval")
+        self.assertEqual(logs[0]["resourceId"], approval["id"])
+        self.assertEqual(logs[0]["outcome"], "allowed")
+        self.assertEqual(logs[0]["metadata"]["interruptId"], approval["interruptId"])
 
     def test_reject_interrupt_updates_request_and_appends_event(self) -> None:
         service, analysis = self.create_firmware_analysis()
@@ -403,6 +411,17 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(approval["status"], "rejected")
         self.assertEqual(approval["decidedBy"], "analyst@example.com")
         self.assertEqual(service.list_events(str(analysis["id"]))[-1]["type"], "approval.rejected")
+        logs = service.list_audit_logs(str(analysis["id"]))
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs[0]["actorId"], "analyst@example.com")
+        self.assertEqual(logs[0]["action"], "approval.rejected")
+        self.assertEqual(logs[0]["resourceType"], "approval")
+        self.assertEqual(logs[0]["resourceId"], approval["id"])
+        self.assertEqual(logs[0]["outcome"], "allowed")
+        self.assertEqual(
+            logs[0]["reason"],
+            "Reject until sample owner approves emulation.",
+        )
 
     def test_create_analysis_stores_agent_initial_state(self) -> None:
         service, analysis = self.create_firmware_analysis()

@@ -229,7 +229,7 @@ AuditLog:
   createdAt: string
 ```
 
-Mock actions currently include `report.content.read` and `artifact.content.read`. Future production actions will cover sensitive artifact downloads, approval decisions, policy denials, analyst finding updates, and administrative changes.
+Mock actions currently include `report.content.read`, `artifact.content.read`, `approval.approved`, and `approval.rejected`. Future production actions will cover sensitive artifact downloads, policy denials, analyst finding updates, and administrative changes.
 
 ## 3. API Endpoints
 
@@ -334,7 +334,7 @@ Approval request body:
 }
 ```
 
-Mock implementation note: the in-memory API currently returns a deterministic pending `firmware-emulation` `ApprovalRequest` for each created analysis. Approve/reject routes update that request and append `approval.approved` or `approval.rejected` SSE events, but do not yet resume a real LangGraph interrupt.
+Mock implementation note: the in-memory API currently returns a deterministic pending `firmware-emulation` `ApprovalRequest` for each created analysis. Approve/reject routes update that request, append `approval.approved` or `approval.rejected` SSE events, and record an `AuditLog`, but do not yet resume a real LangGraph interrupt.
 
 `GET /api/analyses/{analysisId}/state` mock response returns the latest public camelCase projection of the in-memory `AuditAgentState` created from `apps/audit-agents.create_initial_state`. The snapshot currently includes `analysis`, `artifacts`, `findings`, `toolExecutions`, `approvalRequests`, and `events`.
 
@@ -521,6 +521,8 @@ GET /api/audit-logs?analysisId={analysisId}
 ```
 
 P12 mock status: `GET /api/audit-logs?analysisId={analysisId}` returns in-memory `AuditLog` records for the analysis. The mock records report content reads so frontend and later RBAC work can verify that sensitive content access has a structured audit trail.
+
+P18 mock status: approval approve/reject decisions also create `AuditLog` records with actions `approval.approved` and `approval.rejected`, resource type `approval`, and metadata containing the interrupt ID and approval action.
 
 ### 3.10 Mock API Implementation Notes
 
