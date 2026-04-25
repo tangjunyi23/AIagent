@@ -312,23 +312,23 @@ type AgentEvent = {
 
 字段：CWE、CVE、CVSS、影响、证据、复现、修复建议、关联 artifact。
 
-### 6.6 P20 初始工作台落地状态
+### 6.6 P20-P22 初始工作台落地状态
 
-`apps/audit-web` 已创建为 Vite + React + TypeScript 热重载应用，当前第一屏是 `Firmware Analysis Workbench`。
+`apps/audit-web` 已创建为 Vite + React + TypeScript 热重载应用，当前第一屏品牌名是 `思而听二进制漏洞审计平台`，界面文案默认使用中文。
 
 已落地组件：
 
-- `AnalysisTimeline`：按 `AuditEvent.sequence` 展示 `run.*`、`agent.*` 和 `approval.*` mock 事件。
-- `HumanGateCard`：展示 `firmware-emulation` interrupt/approval gate、风险摘要和结构化参数。
-- `ArtifactViewer`：展示 redacted `vuln.finding_evidence` 预览和审计日志计数。
-- `FindingBoard`：展示 mock finding、严重度、状态、置信度和证据 artifact ID。
+- `AnalysisTimeline`：按 `AuditEvent.sequence` 展示 `run.*`、`agent.*` 和 `approval.*` mock 事件，并用中文显示事件含义。
+- `HumanGateCard`：展示 `firmware-emulation` interrupt/approval gate、风险摘要和结构化参数，面板标题为“人工审批”。
+- `ArtifactViewer`：展示脱敏 `vuln.finding_evidence` 预览和审计日志计数，面板标题为“证据文件”。
+- `FindingBoard`：展示中文 mock finding、严重度、状态、置信度和证据 artifact ID，面板标题为“漏洞发现”。
 
 交互：
 
-- `Approve Gate` 调用前端 mock adapter，将 approval 状态改为 `approved`，追加 `approval.approved` 事件和 `AuditLog`。
-- `Reject Gate` 将 approval 状态改为 `rejected`，保留 finding/evidence 记录并追加 `approval.rejected`。
-- `Cancel Run` 将 analysis 状态改为 `cancelled`，追加 `run.cancelled` 并更新 state next actions。
-- `Branch From Checkpoint` 调用前端 mock adapter，将当前 checkpoint 复制到新的 `analysis_2`/`thread_2` lineage，并展示 `run.queued` 与 `state.snapshot` 事件。
+- “批准审批”调用前端 mock adapter，将 approval 状态改为 `approved`，追加 `approval.approved` 事件和 `AuditLog`。
+- “拒绝审批”将 approval 状态改为 `rejected`，保留 finding/evidence 记录并追加 `approval.rejected`。
+- “取消运行”将 analysis 状态改为 `cancelled`，追加 `run.cancelled` 并更新 state next actions。
+- “从检查点分支”调用前端 mock adapter，将当前 checkpoint 复制到新的 `analysis_2`/`thread_2` lineage，并展示 `run.queued` 与 `state.snapshot` 事件。
 
 当前前端默认使用本地结构化 mock 数据，不要求 Python mock API 同时运行。后续接入后端时应把 `src/lib/workbenchData.ts` 拆为 mock fixture 与 `/api/*` client adapter，保持组件只依赖 typed view model。
 

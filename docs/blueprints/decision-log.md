@@ -296,3 +296,17 @@
   - https://docs.langchain.com/langsmith/agent-server
   - https://docs.langchain.com/oss/python/langgraph/persistence
   - https://docs.langchain.com/oss/python/langgraph/time-travel
+
+## 2026-04-25: Audit Web Uses Chinese Product Copy
+
+- Decision: P22 changes the Audit Web first screen, component headings, action buttons, status labels, and local mock finding/action copy to Chinese, with the visible product name `思而听二进制漏洞审计平台`.
+- Reason: the workbench is now intended for Chinese operators while preserving the existing structured API, SSE event, approval, artifact, finding, and state contracts.
+- Boundary: no OpenAPI route, SSE event type, backend mock service behavior, Agent Server integration, MCP route, worker execution, persistence, or dangerous action behavior changes in this round.
+- Official docs: LangGraph streaming, interrupts, persistence/checkpoints, StateGraph state, LangSmith Agent Server, and MCP remain backend integration targets. This round only changes presentation text over the same product-owned structured state/events.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/langsmith/server-mcp
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/interrupts
+  - https://docs.langchain.com/oss/python/langgraph/persistence

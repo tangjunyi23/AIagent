@@ -26,15 +26,15 @@ export function createMockWorkbench(): AuditWorkbench {
     createdAt: baseTimestamp,
     redacted: true,
     preview:
-      '{"artifactId":"artifact_analysis_1_evidence","artifactType":"vuln.finding_evidence","redacted":true,"summary":"Suspicious firmware string references a shell execution path."}'
+      '{"artifactId":"artifact_analysis_1_evidence","artifactType":"vuln.finding_evidence","redacted":true,"summary":"脱敏静态证据显示固件字符串引用了 shell 执行路径。"}'
   };
   const finding: Finding = {
     id: "finding_analysis_1_static_strings",
     analysisId: "analysis_1",
     projectId: "project_1",
-    title: "Mock suspicious firmware string",
+    title: "模拟固件命令执行风险",
     description:
-      "Static evidence found a command execution string that needs analyst review before dynamic verification.",
+      "静态证据发现命令执行相关字符串，需要审计员复核后才能进入动态验证。",
     severity: "high",
     confidence: 0.55,
     status: "needs-review",
@@ -51,9 +51,9 @@ export function createMockWorkbench(): AuditWorkbench {
     action: "firmware-emulation",
     status: "pending",
     requestedByAgent: "supervisor",
-    reason: "QEMU component emulation can expose services and must stay gated.",
+    reason: "QEMU 组件模拟可能暴露服务，必须保持人工审批。",
     riskSummary:
-      "Firmware emulation may execute untrusted code. Network remains disabled until explicitly approved.",
+      "固件模拟可能执行不可信代码。除非显式批准，外连网络保持关闭。",
     proposedParameters: {
       simulationMode: "component",
       networkPolicy: "none",
@@ -91,16 +91,16 @@ export function createMockWorkbench(): AuditWorkbench {
       findingIds: [finding.id],
       approvalIds: [approval.id],
       nextActions: [
-        "Review firmware-emulation approval",
-        "Inspect redacted evidence artifact",
-        "Confirm finding status before report export"
+        "复核固件模拟审批",
+        "检查脱敏证据文件",
+        "报告导出前确认漏洞状态"
       ]
     },
     events: [
       createEvent(1, "run.queued", "api", "mock_run_queue", { status: "queued" }),
       createEvent(2, "agent.started", "supervisor", "triage", {
         status: "started",
-        message: "Supervisor accepted firmware analysis."
+        message: "Supervisor 已接收固件分析任务。"
       }),
       createEvent(3, "approval.requested", "supervisor", "approval_gate", {
         approvalId: approval.id,
@@ -114,7 +114,7 @@ export function createMockWorkbench(): AuditWorkbench {
       createEvent(4, "run.interrupted", "supervisor", "approval_gate", {
         status: "interrupted",
         checkpointId: "checkpoint_analysis_1_interrupt",
-        message: "Dangerous firmware emulation is waiting for analyst approval."
+        message: "高风险固件模拟正在等待审计员审批。"
       })
     ],
     approvals: [approval],
@@ -131,7 +131,7 @@ export function createMockWorkbench(): AuditWorkbench {
         resourceType: "artifact",
         resourceId: artifact.id,
         outcome: "allowed",
-        reason: "Mock artifact preview opened in workbench.",
+        reason: "工作台打开了脱敏证据预览。",
         createdAt: baseTimestamp
       }
     ]
@@ -158,7 +158,7 @@ export function cancelRun(workbench: AuditWorkbench): AuditWorkbench {
   const event = createEvent(nextSequence(workbench.events), "run.cancelled", "api", "mock_cancel", {
     status: "cancelled",
     checkpointId: workbench.state.checkpointId,
-    message: "Run cancelled by analyst"
+    message: "分析已由审计员取消"
   });
   return {
     ...workbench,
@@ -170,7 +170,7 @@ export function cancelRun(workbench: AuditWorkbench): AuditWorkbench {
     state: {
       ...workbench.state,
       stateVersion: workbench.state.stateVersion + 1,
-      nextActions: ["Run cancelled by analyst", "Create a branch from the last checkpoint if needed"]
+      nextActions: ["分析已由审计员取消", "如需继续，请从最近检查点创建分支"]
     },
     events: [...workbench.events, event]
   };
@@ -224,7 +224,7 @@ export function branchFromCheckpoint(
       artifactIds: artifacts.map((artifact) => artifact.id),
       findingIds: findings.map((finding) => finding.id),
       approvalIds: approvals.map((approval) => approval.id),
-      nextActions: ["Review branched checkpoint state.", "Start a new run when ready."],
+      nextActions: ["检查分支检查点状态", "确认后启动新的分析运行"],
       sourceAnalysisId,
       reason
     })
@@ -246,7 +246,7 @@ export function branchFromCheckpoint(
       artifactIds: artifacts.map((artifact) => artifact.id),
       findingIds: findings.map((finding) => finding.id),
       approvalIds: approvals.map((approval) => approval.id),
-      nextActions: ["Review branched checkpoint state.", "Start a new run when ready."]
+      nextActions: ["检查分支检查点状态", "确认后启动新的分析运行"]
     },
     events,
     approvals,

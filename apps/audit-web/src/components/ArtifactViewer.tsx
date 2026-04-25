@@ -11,8 +11,8 @@ export function ArtifactViewer({ artifacts, auditLogs }: ArtifactViewerProps) {
   return (
     <section className="panel artifact-panel" data-component="ArtifactViewer">
       <div className="panel-heading">
-        <h2>Artifacts</h2>
-        <span>{auditLogs.length} audit logs</span>
+        <h2>证据文件</h2>
+        <span>{auditLogs.length} 条审计记录</span>
       </div>
       {artifacts.map((artifact) => (
         <article key={artifact.id} className="artifact-item">
@@ -28,7 +28,7 @@ export function ArtifactViewer({ artifacts, auditLogs }: ArtifactViewerProps) {
             <span>{artifact.mediaType}</span>
             <span>
               <Lock size={13} aria-hidden="true" />
-              {artifact.redacted ? "redacted preview" : "raw preview"}
+              {artifact.redacted ? "脱敏预览" : "原始预览"}
             </span>
           </div>
         </article>

@@ -2712,3 +2712,160 @@ Observed result:
 1. Add a thin frontend API adapter that can switch between local mock data and the Python mock `/api/*` service.
 2. Create `apps/audit-workers` tool execution placeholder interfaces now that analysis lifecycle branch/cancel behavior is stable.
 3. Add API query support for branch lineage metadata once a persistent repository replaces in-memory storage.
+
+## 2026-04-25: P22 Chinese Audit Web Branding And Copy
+
+### Scope
+
+- Localized the first Audit Web workbench screen into Chinese.
+- Changed the visible product name from `Firmware Analysis Workbench` to `思而听二进制漏洞审计平台`.
+- Updated component headings, action buttons, status labels, approval labels, artifact preview labels, finding metadata labels, and local structured mock copy.
+- Updated the HTML document language/title for the Vite app.
+- Kept structured enum values, `AuditEvent.type`, API route contracts, SSE payloads, approval/action IDs, artifact IDs, finding IDs, analysis IDs, thread IDs, and checkpoint IDs unchanged.
+- Did not add backend API behavior, Agent Server integration, MCP routes, worker execution, persistence, RBAC, artifact export, or dangerous dynamic analysis.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-web/package.json`
+- `apps/audit-web/index.html`
+- `apps/audit-web/src/App.tsx`
+- `apps/audit-web/src/components/AnalysisTimeline.tsx`
+- `apps/audit-web/src/components/HumanGateCard.tsx`
+- `apps/audit-web/src/components/ArtifactViewer.tsx`
+- `apps/audit-web/src/components/FindingBoard.tsx`
+- `apps/audit-web/src/lib/workbenchData.ts`
+- `apps/audit-web/src/tests/App.test.tsx`
+- `apps/audit-web/src/tests/workbenchData.test.ts`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/langsmith/agent-server`
+- `https://docs.langchain.com/langsmith/server-mcp`
+- `https://docs.langchain.com/oss/python/langgraph/overview`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+
+Adopted conclusions:
+
+- Product APIs remain the browser-facing boundary; frontend localization must not expose native Agent Server or MCP routes.
+- LangGraph streaming and state/checkpoint semantics remain represented as structured `AuditEvent` and state records; localized labels sit on top of those records.
+- Human approval/interrupt copy can be localized, but high-risk actions still remain approval-gated and are not executed by the frontend mock.
+- This round does not require a new OpenAPI or SSE event type because no structured contract changed.
+
+### Frontend Stack And Hot Reload
+
+- Existing frontend owner: `apps/audit-web`.
+- Stack: Vite `6.4.2`, React, TypeScript.
+- Startup command: `npm run dev -- --port 5173`.
+- Dev server status: reused existing Vite dev server on `5173`.
+- Hot reload URL: `http://127.0.0.1:5173/`.
+- Existing pages/components before this round: one workbench entry in `App.tsx` with `AnalysisTimeline`, `HumanGateCard`, `ArtifactViewer`, `FindingBoard`, report metadata, audit logs, summary strip, and run controls.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "Firmware Analysis Workbench|Binary Audit Platform|思而听|中文|Chinese|Localization|localization|i18n|Audit Web entry|AnalysisTimeline|HumanGateCard|ArtifactViewer|FindingBoard" apps/audit-web docs/blueprints apps/audit-api apps/audit-agents libs/audit-common -S --glob '!**/node_modules/**' --glob '!**/dist/**'
+find apps/audit-web docs/blueprints -maxdepth 6 \( -iname '*locale*' -o -iname '*i18n*' -o -iname '*translation*' -o -iname '*workbench*' -o -iname '*analysis-timeline*' -o -iname '*human-gate*' -o -iname '*artifact*' -o -iname '*finding*' \) -print | sort
+```
+
+Result:
+
+- Existing owner modules are `App.tsx`, `AnalysisTimeline`, `HumanGateCard`, `ArtifactViewer`, `FindingBoard`, and `workbenchData.ts`.
+- No separate i18n/localization module, duplicate Chinese workbench, duplicate event viewer, duplicate approval component, duplicate artifact viewer, or duplicate finding board existed.
+- P22 extends existing frontend owners only.
+
+### TDD Evidence
+
+Red frontend tests:
+
+```bash
+cd apps/audit-web && npm test -- --run src/tests/App.test.tsx src/tests/workbenchData.test.ts
+```
+
+Observed result before implementation:
+
+- `App.test.tsx` failed because the rendered markup still contained `Firmware Analysis Workbench` instead of `思而听二进制漏洞审计平台`.
+- `workbenchData.test.ts` failed because the mock finding title, cancel next action, and branch next actions were still English.
+
+Green frontend tests:
+
+```bash
+cd apps/audit-web && npm test -- --run src/tests/App.test.tsx src/tests/workbenchData.test.ts
+```
+
+Observed result after implementation:
+
+- 2 frontend test files ran and passed.
+- 6 tests ran and passed.
+
+### Files Changed
+
+- Updated `apps/audit-web/index.html`
+- Updated `apps/audit-web/src/App.tsx`
+- Updated `apps/audit-web/src/components/AnalysisTimeline.tsx`
+- Updated `apps/audit-web/src/components/HumanGateCard.tsx`
+- Updated `apps/audit-web/src/components/ArtifactViewer.tsx`
+- Updated `apps/audit-web/src/components/FindingBoard.tsx`
+- Updated `apps/audit-web/src/lib/workbenchData.ts`
+- Updated `apps/audit-web/src/tests/App.test.tsx`
+- Updated `apps/audit-web/src/tests/workbenchData.test.ts`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+No new source file was created in P22 because this is a focused presentation/local mock copy change. The duplicate check showed the existing frontend owner files already exactly own the visible copy and mock view data; adding a new localization module for this small closure would introduce an unused parallel owner.
+
+### Frontend Display
+
+- Entry: `apps/audit-web/src/App.tsx`
+- Hot reload URL: `http://127.0.0.1:5173/`
+- Updated page title: `思而听二进制漏洞审计平台`
+- Updated components: `AnalysisTimeline`, `HumanGateCard`, `ArtifactViewer`, `FindingBoard`, report panel, audit-log panel, summary strip, and action strip.
+- How to see this round: open the URL and confirm the first screen title is `思而听二进制漏洞审计平台`; use `批准审批`, `拒绝审批`, `取消运行`, and `从检查点分支` to see Chinese structured state/event/audit-log updates.
+- Backend/mock API requirement: not required for the frontend display. The page uses local typed mock data in `src/lib/workbenchData.ts`.
+- Dev server status: reused existing Vite dev server on `5173`; `curl -I --max-time 5 http://127.0.0.1:5173/` returned `HTTP/1.1 200 OK`.
+
+### Validation
+
+Commands run:
+
+```bash
+cd apps/audit-web && npm run lint
+cd apps/audit-web && npm test -- --run
+cd apps/audit-web && npm run build
+cd apps/audit-web && npm audit --audit-level=high
+rg -n "思而听二进制漏洞审计平台|二进制漏洞审计工作台|时间线|人工审批|证据文件|漏洞发现|取消运行|从检查点分支|批准审批|拒绝审批|模拟固件命令执行风险|P22|Chinese Product Copy" apps/audit-web docs/blueprints -S --glob '!**/node_modules/**' --glob '!**/dist/**'
+rg -n '``[^`\n]+``' apps/audit-web docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md docs/blueprints/binary-audit-platform-frontend-blueprint.md -S --glob '!**/node_modules/**' --glob '!**/dist/**'
+curl -I --max-time 5 http://127.0.0.1:5173/
+ss -ltnp | rg ':5173'
+```
+
+Observed result:
+
+- `npm run lint` ran `tsc --noEmit` and exited 0.
+- `npm test -- --run` ran 2 test files and 6 tests; all passed.
+- `npm run build` ran `tsc --noEmit && vite build`; production build completed successfully.
+- `npm audit --audit-level=high` reported `found 0 vulnerabilities`.
+- Chinese keyword search returned the updated app files, tests, and blueprint records.
+- Inline Sphinx-style double-backtick search returned no matches.
+- Dev server returned `HTTP/1.1 200 OK` and `ss` showed a `node` process listening on `0.0.0.0:5173`.
+
+### Next Recommended Tasks
+
+1. Add a thin frontend API adapter that can switch between local mock data and the Python mock `/api/*` service.
+2. Create `apps/audit-workers` tool execution placeholder interfaces now that analysis lifecycle branch/cancel behavior is stable.
+3. Add API query support for branch lineage metadata once a persistent repository replaces in-memory storage.

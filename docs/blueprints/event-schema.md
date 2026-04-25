@@ -259,6 +259,8 @@ ErrorPayload:
 
 P20 frontend status: `apps/audit-web` implements the first local mock mapping for `AnalysisTimeline`, `HumanGateCard`, `ArtifactViewer`, and `FindingBoard`. The mock workbench renders `run.queued`, `agent.started`, `approval.requested`, `run.interrupted`, `approval.approved`, `approval.rejected`, and `run.cancelled` event flows. Artifact content reads and approval decisions are shown through `AuditLog` records rather than new SSE event types, matching the backend mock contract.
 
+P22 frontend status: `apps/audit-web` renders Chinese labels for event meanings, approval statuses, artifact previews, and finding metadata while preserving the raw `AuditEvent.type`, payload fields, and structured state contracts. No SSE event type or payload schema changed for localization.
+
 ## 6. LangGraph Mapping
 
 - LangGraph stream state updates are normalized into `state.snapshot`, `agent.*`, and `token.delta` events.

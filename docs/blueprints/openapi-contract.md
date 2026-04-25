@@ -550,6 +550,7 @@ The first `apps/audit-api` implementation is an in-memory mock for parallel fron
 - Mock `POST /api/samples:upload` accepts JSON sample metadata for frontend and agent parallel development; production multipart upload parsing remains deferred.
 - SSE formatting is represented by `format_sse_event`; authentication, RBAC, persistent storage, native Agent Server run creation, and MCP exposure are intentionally deferred.
 - P20 frontend status: `apps/audit-web` currently mirrors this API contract with local typed mock data in `src/lib/workbenchData.ts`. It renders analysis lifecycle, interrupts, artifact preview, findings, report metadata, and audit logs without requiring the Python mock API to run. The frontend must continue to call product `/api/*` routes when live API integration is added; it must not call Agent Server or MCP routes directly.
+- P22 frontend status: the visible Audit Web copy is Chinese and branded as `思而听二进制漏洞审计平台`. This is a presentation-only change over the same typed mock data and does not add or rename OpenAPI resources, fields, or routes.
 
 ## 4. Error Envelope
 

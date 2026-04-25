@@ -13,6 +13,15 @@ import {
   rejectInterrupt
 } from "./lib/workbenchData";
 
+const analysisStatusLabels = {
+  queued: "已排队",
+  running: "运行中",
+  interrupted: "等待审批",
+  succeeded: "已完成",
+  failed: "失败",
+  cancelled: "已取消"
+} as const;
+
 export default function App() {
   const [workbench, setWorkbench] = useState(() => createMockWorkbench());
   const pendingApproval = useMemo(
@@ -25,30 +34,30 @@ export default function App() {
     <main className="app-shell">
       <section className="top-bar">
         <div>
-          <p className="eyebrow">Binary Audit Platform</p>
-          <h1>Firmware Analysis Workbench</h1>
+          <p className="eyebrow">二进制漏洞审计工作台</p>
+          <h1>思而听二进制漏洞审计平台</h1>
         </div>
         <div className={`status-pill ${statusTone}`}>
           <ShieldAlert size={16} aria-hidden="true" />
-          {workbench.analysis.status}
+          {analysisStatusLabels[workbench.analysis.status]}
         </div>
       </section>
 
       <section className="summary-band">
         <div>
-          <span>Analysis</span>
+          <span>分析</span>
           <strong>{workbench.analysis.id}</strong>
         </div>
         <div>
-          <span>Thread</span>
+          <span>线程</span>
           <strong>{workbench.analysis.langgraphThreadId}</strong>
         </div>
         <div>
-          <span>Run</span>
-          <strong>{workbench.analysis.langgraphRunId}</strong>
+          <span>运行</span>
+          <strong>{workbench.analysis.langgraphRunId ?? "未启动"}</strong>
         </div>
         <div>
-          <span>Checkpoint</span>
+          <span>检查点</span>
           <strong>{workbench.state.checkpointId}</strong>
         </div>
       </section>
@@ -61,7 +70,7 @@ export default function App() {
           disabled={workbench.analysis.status === "cancelled"}
         >
           <Ban size={16} aria-hidden="true" />
-          Cancel Run
+          取消运行
         </button>
         <button
           type="button"
@@ -71,13 +80,13 @@ export default function App() {
               branchFromCheckpoint(
                 current,
                 current.state.checkpointId,
-                "Compare alternate static-only path."
+                "对比仅静态分析的替代路径。"
               )
             )
           }
         >
           <GitBranch size={16} aria-hidden="true" />
-          Branch From Checkpoint
+          从检查点分支
         </button>
         {pendingApproval ? (
           <>
@@ -89,13 +98,13 @@ export default function App() {
                   approveInterrupt(
                     current,
                     pendingApproval.interruptId,
-                    "Approved for isolated component emulation with no external network."
+                    "批准在隔离组件模拟中继续，保持外连网络关闭。"
                   )
                 )
               }
             >
               <CheckCircle2 size={16} aria-hidden="true" />
-              Approve Gate
+              批准审批
             </button>
             <button
               type="button"
@@ -105,13 +114,13 @@ export default function App() {
                   rejectInterrupt(
                     current,
                     pendingApproval.interruptId,
-                    "Dynamic analysis is outside the current authorization scope."
+                    "动态分析超出当前授权范围。"
                   )
                 )
               }
             >
               <XCircle size={16} aria-hidden="true" />
-              Reject Gate
+              拒绝审批
             </button>
           </>
         ) : null}
@@ -127,7 +136,7 @@ export default function App() {
       <section className="lower-grid">
         <div className="panel">
           <div className="panel-heading">
-            <h2>Reports</h2>
+            <h2>报告</h2>
           </div>
           <div className="report-row">
             <span>{workbench.reports[0].name}</span>
@@ -137,7 +146,7 @@ export default function App() {
         </div>
         <div className="panel">
           <div className="panel-heading">
-            <h2>Audit Logs</h2>
+            <h2>审计日志</h2>
           </div>
           <ol className="audit-log">
             {workbench.auditLogs.map((log) => (
