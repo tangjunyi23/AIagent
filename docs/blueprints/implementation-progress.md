@@ -1558,3 +1558,116 @@ Observed result:
 1. Add `GET /api/artifacts/{artifactId}/content` for non-report artifacts only after export authorization, audit-log action names, and redaction rules are finalized.
 2. Add report regeneration/versioning fields before multiple report artifacts per analysis are needed.
 3. Replace in-memory audit logs and artifacts with persistence/object storage once RBAC and tenant checks are implemented.
+
+## 2026-04-25: P13 Report Metadata Versioning
+
+### Scope
+
+- Added version metadata for repeated mock report generation.
+- Preserved the first report artifact ID as `report_{analysisId}_{format}` for compatibility.
+- Added `_v{versionNumber}` IDs for subsequent reports with `versionNumber`, `previousReportId`, `latest`, and `supersededByReportId` metadata.
+- Kept report content, audit logging, state synchronization, and `artifact.created` event behavior on existing paths.
+- Did not add a real Report Agent run, persistence, object storage, a separate report workflow module, Agent Server routes, MCP routes, or new SSE event types.
+
+### Local Context Read
+
+- `docs/blueprints/binary-audit-platform-backend-blueprint.md`
+- `docs/blueprints/binary-audit-platform-frontend-blueprint.md`
+- `docs/blueprints/implementation-progress.md`
+- `docs/blueprints/feature-registry.md`
+- `docs/blueprints/decision-log.md`
+- `docs/blueprints/openapi-contract.md`
+- `docs/blueprints/event-schema.md`
+- `apps/audit-api/audit_api/mock_service.py`
+- `apps/audit-api/audit_api/server.py`
+- `apps/audit-api/tests/test_mock_service.py`
+- `apps/audit-api/tests/test_server.py`
+
+### Official Documentation Checked
+
+- `https://docs.langchain.com/mcp`
+- `https://docs.langchain.com/langsmith/agent-server`
+- `https://docs.langchain.com/langsmith/server-mcp`
+- `https://docs.langchain.com/oss/python/langgraph/streaming`
+- `https://docs.langchain.com/oss/python/langgraph/interrupts`
+- `https://docs.langchain.com/oss/python/langgraph/persistence`
+
+Adopted conclusions:
+
+- Keep mock report metadata writes behind product `/api/*` routes.
+- Reuse `artifact.created` and artifact metadata for report regeneration; no new SSE event type is needed.
+- Defer real Report Agent runs, persistence, and Agent Server/MCP integration until report generation becomes a graph-backed workflow.
+
+### Duplicate Function Check
+
+Commands used:
+
+```bash
+rg -n "report.*version|version.*report|reportVersion|versionNumber|supersedes|superseded|latestReport|regenerate|regeneration|create_report|get_report" apps/audit-api libs/audit-common docs/blueprints -S
+find apps libs docs -maxdepth 5 \( -iname '*report*version*' -o -iname '*report*' -o -iname '*version*' \) -print | sort
+rg -n "report_\{analysis|report_\{|report_.*_markdown|memory://reports|finding_count|redaction_profile|create_report\(" apps/audit-api docs/blueprints -S
+```
+
+Result:
+
+- Existing report ownership was in `AuditMockService.create_report`, `get_report`, and existing handler dispatch.
+- No report versioning, regeneration metadata, or parallel report version module existed.
+- P13 extended the existing mock service and tests only.
+
+### TDD Evidence
+
+Red targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_create_report_versions_repeated_generation tests.test_server.AuditApiHandlerRouteTests.test_post_reports_generates_versioned_report_artifacts -v
+```
+
+Observed result before implementation:
+
+- Service test errored with `KeyError: 'versionNumber'`.
+- HTTP test failed because the second `POST /api/reports` still returned `report_analysis_1_markdown` instead of `report_analysis_1_markdown_v2`.
+
+Green targeted tests:
+
+```bash
+cd apps/audit-api && PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest tests.test_mock_service.MockServiceTests.test_create_report_versions_repeated_generation tests.test_server.AuditApiHandlerRouteTests.test_post_reports_generates_versioned_report_artifacts -v
+```
+
+Observed result after implementation:
+
+- 2 targeted tests ran and passed.
+
+### Files Changed
+
+- Updated `apps/audit-api/audit_api/mock_service.py`
+- Updated `apps/audit-api/tests/test_mock_service.py`
+- Updated `apps/audit-api/tests/test_server.py`
+- Updated `docs/blueprints/feature-registry.md`
+- Updated `docs/blueprints/decision-log.md`
+- Updated `docs/blueprints/openapi-contract.md`
+- Updated `docs/blueprints/event-schema.md`
+- Updated `docs/blueprints/implementation-progress.md`
+
+### Validation
+
+Final validation commands:
+
+```bash
+cd apps/audit-api && make format && make lint && make test
+rg -n "versionNumber|previousReportId|supersededByReportId|report_analysis_1_markdown_v2|P13|Repeated Mock Reports" docs/blueprints apps/audit-api -S
+rg -n '``[^`\n]+``' apps/audit-api docs/blueprints/implementation-progress.md docs/blueprints/openapi-contract.md docs/blueprints/event-schema.md docs/blueprints/decision-log.md docs/blueprints/feature-registry.md -S
+```
+
+Observed result:
+
+- `make format` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make lint` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m compileall -q audit_api tests`.
+- `make test` ran `PYTHONPATH=.:../../libs/audit-common:../audit-agents python3 -m unittest discover tests -v`; 45 API tests ran and passed.
+- Report versioning keyword search returned the P13 code, tests, and blueprint updates.
+- Inline Sphinx-style double-backtick search in touched code and blueprint paths returned no matches.
+
+### Next Recommended Tasks
+
+1. Add project-level finding filters and pagination for frontend FindingBoard list views.
+2. Add `GET /api/artifacts/{artifactId}/content` for non-report artifacts only after export authorization, audit-log action names, and redaction rules are finalized.
+3. Replace in-memory audit logs, reports, and artifacts with persistence/object storage once RBAC and tenant checks are implemented.

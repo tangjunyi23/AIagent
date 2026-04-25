@@ -184,3 +184,15 @@
   - https://docs.langchain.com/oss/python/langgraph/streaming
   - https://docs.langchain.com/oss/python/langgraph/interrupts
   - https://docs.langchain.com/oss/python/langgraph/persistence
+
+## 2026-04-25: Repeated Mock Reports Are Versioned Artifacts
+
+- Decision: P13 keeps reports as `ArtifactRef` records and versions repeated `POST /api/reports` calls for the same analysis and format instead of overwriting the prior artifact.
+- Reason: frontend report panels and later object storage need stable historical artifact IDs. Preserving the first ID keeps existing clients/tests compatible, while `_v{versionNumber}` IDs allow regeneration workflows.
+- Boundary: no separate report workflow, Report Agent run, persistence layer, object storage, MCP route, or native Agent Server route is introduced.
+- Official docs: Agent Server runs, persistence, and streaming remain later integration surfaces; synchronous mock report metadata updates stay in the product API until the report workflow becomes a real graph/run.
+- Links:
+  - https://docs.langchain.com/mcp
+  - https://docs.langchain.com/langsmith/agent-server
+  - https://docs.langchain.com/oss/python/langgraph/streaming
+  - https://docs.langchain.com/oss/python/langgraph/persistence

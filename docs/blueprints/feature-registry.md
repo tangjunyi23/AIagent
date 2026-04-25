@@ -64,7 +64,7 @@
 | `GET /api/artifacts/{artifactId}/content` | draft | Download or preview artifact content |
 | `GET /api/findings` | mock implemented | Query mock findings by `analysisId` |
 | `PATCH /api/findings/{findingId}` | mock implemented | Analyst status/severity updates and `finding.updated` event |
-| `POST /api/reports` | mock implemented | Generate mock report artifact metadata |
+| `POST /api/reports` | mock implemented | Generate versioned mock report artifact metadata |
 | `GET /api/reports/{reportId}` | mock implemented | Fetch mock report artifact metadata |
 | `GET /api/reports/{reportId}/content` | mock implemented | Return redacted mock report content and record `report.content.read` audit log |
 | `GET /api/audit-logs` | mock implemented | Query mock audit logs by `analysisId` |
@@ -134,3 +134,6 @@
 | 2026-04-25 | `rg -n "AuditLog|audit log|audit_log|audit-logs|auditLogs|report.*content|reports/.*/content|artifact.*content|artifact-export|sensitive export|export" apps/audit-api apps/audit-agents libs/audit-common docs/blueprints -S` | Report/artifact content routes were draft and no `AuditLog` schema or audit-log query existed. Extended `libs/audit-common`, `AuditMockService`, and `AuditApiHandler`; no parallel content, artifact, report, Agent Server, or MCP module was added. |
 | 2026-04-25 | `find apps libs docs -maxdepth 5 \( -iname '*audit*log*' -o -iname '*content*' -o -iname '*report*' -o -iname '*artifact*' \) -print | sort` | Only prior report/artifact plan docs and unrelated checkpoint conformance report helper were found; no existing product audit-log/content implementation existed. |
 | 2026-04-25 | `rg -n "get_report\(|create_report\(|get_artifact\(|list_events\(|AuditMockService|AuditApiHandler|GET /api/reports|GET /api/artifacts/.*/content" apps/audit-api libs/audit-common docs/blueprints -S` | Existing owner files were `AuditMockService` and `AuditApiHandler`; extended those files for report content and audit logs. |
+| 2026-04-25 | `rg -n "report.*version|version.*report|reportVersion|versionNumber|supersedes|superseded|latestReport|regenerate|regeneration|create_report|get_report" apps/audit-api libs/audit-common docs/blueprints -S` | Existing report creation/read/content owner methods were found, but no report versioning or regeneration metadata existed. Extended `AuditMockService` and existing report tests only. |
+| 2026-04-25 | `find apps libs docs -maxdepth 5 \( -iname '*report*version*' -o -iname '*report*' -o -iname '*version*' \) -print | sort` | Only unrelated version files and existing report helpers were found; no product report versioning module existed. |
+| 2026-04-25 | `rg -n "report_\{analysis|report_\{|report_.*_markdown|memory://reports|finding_count|redaction_profile|create_report\(" apps/audit-api docs/blueprints -S` | Existing deterministic report ID and URI rules were found in `AuditMockService`; P13 extended that method instead of adding a parallel generator. |

@@ -142,6 +142,40 @@ class MockServiceTests(unittest.TestCase):
         state = service.get_analysis_state(str(analysis["id"]))
         self.assertIn("report_analysis_1_markdown", [item["id"] for item in state["artifacts"]])
 
+    def test_create_report_versions_repeated_generation(self) -> None:
+        service, analysis = self.create_firmware_analysis()
+
+        first = service.create_report(
+            {
+                "analysisId": analysis["id"],
+                "format": "markdown",
+                "includeUnverifiedFindings": True,
+            }
+        )
+        second = service.create_report(
+            {
+                "analysisId": analysis["id"],
+                "format": "markdown",
+                "includeUnverifiedFindings": False,
+            }
+        )
+
+        self.assertEqual(first["id"], "report_analysis_1_markdown")
+        self.assertEqual(first["metadata"]["versionNumber"], 1)
+        self.assertEqual(second["id"], "report_analysis_1_markdown_v2")
+        self.assertEqual(second["metadata"]["versionNumber"], 2)
+        self.assertEqual(second["metadata"]["previousReportId"], first["id"])
+        self.assertTrue(second["metadata"]["latest"])
+
+        refreshed_first = service.get_report("report_analysis_1_markdown")
+        self.assertFalse(refreshed_first["metadata"]["latest"])
+        self.assertEqual(
+            refreshed_first["metadata"]["supersededByReportId"],
+            "report_analysis_1_markdown_v2",
+        )
+        state = service.get_analysis_state(str(analysis["id"]))
+        self.assertIn("report_analysis_1_markdown_v2", [item["id"] for item in state["artifacts"]])
+
     def test_get_report_content_returns_redacted_payload_and_audit_log(self) -> None:
         service, analysis = self.create_firmware_analysis()
         service.create_report(

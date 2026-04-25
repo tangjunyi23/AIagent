@@ -183,6 +183,8 @@ P11 mock status: `POST /api/reports` emits `artifact.created` for report artifac
 
 P12 mock status: `GET /api/reports/{reportId}/content` records a structured `AuditLog` entry instead of emitting a timeline SSE event. Report content is returned only by the explicit content endpoint and is not embedded in `artifact.created` or other product event payloads.
 
+P13 mock status: repeated report generation emits one `artifact.created` event per report version. No new SSE event type is introduced for report regeneration; clients should refresh report artifact metadata and inspect `metadata.versionNumber`, `metadata.latest`, `metadata.previousReportId`, and `metadata.supersededByReportId`.
+
 ### 4.8 Finding Events
 
 ```yaml

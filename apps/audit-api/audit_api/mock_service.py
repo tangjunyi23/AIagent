@@ -153,6 +153,17 @@ class AuditMockService:
         analysis = self._analyses[analysis_id]
         report_format = str(body.get("format", "markdown"))
         artifact_type, media_type, extension = self._report_format_metadata(report_format)
+        version_number = self._next_report_version(analysis_id, report_format)
+        report_id = self._report_id(analysis_id, report_format, version_number)
+        previous_report_id = (
+            self._report_id(analysis_id, report_format, version_number - 1)
+            if version_number > 1
+            else None
+        )
+        if previous_report_id is not None and previous_report_id in self._artifacts:
+            previous = self._artifacts[previous_report_id]
+            previous["metadata"]["latest"] = False
+            previous["metadata"]["superseded_by_report_id"] = report_id
         include_unverified = bool(body.get("include_unverified_findings", True))
         findings = [
             finding
@@ -161,15 +172,15 @@ class AuditMockService:
             and (include_unverified or finding["verification"]["status"] == "verified")
         ]
         artifact: ArtifactRef = {
-            "id": f"report_{analysis_id}_{report_format}",
+            "id": report_id,
             "analysis_id": analysis_id,
             "project_id": analysis["project_id"],
             "type": artifact_type,
-            "name": f"{analysis_id}-audit-report.{extension}",
+            "name": f"{analysis_id}-audit-report-v{version_number}.{extension}",
             "media_type": media_type,
             "size": 512,
             "sha256": None,
-            "uri": f"memory://reports/{analysis_id}/{report_format}",
+            "uri": f"memory://reports/{analysis_id}/{report_format}/v{version_number}",
             "producer": {
                 "agent": "report",
                 "node": "mock_report_builder",
@@ -181,6 +192,10 @@ class AuditMockService:
                 "include_unverified_findings": include_unverified,
                 "finding_count": len(findings),
                 "redaction_profile": str(body.get("redaction_profile", "default")),
+                "version_number": version_number,
+                "previous_report_id": previous_report_id,
+                "latest": True,
+                "superseded_by_report_id": None,
             },
             "created_at": self._timestamp(),
         }
@@ -591,6 +606,24 @@ class AuditMockService:
         if not artifact["type"].startswith("report."):
             raise KeyError(f"unknown report: {report_id}")
         return artifact
+
+    def _next_report_version(self, analysis_id: str, report_format: str) -> int:
+        prefix = f"report_{analysis_id}_{report_format}"
+        return (
+            sum(
+                1
+                for artifact in self._artifacts.values()
+                if artifact["id"] == prefix or artifact["id"].startswith(f"{prefix}_v")
+            )
+            + 1
+        )
+
+    @staticmethod
+    def _report_id(analysis_id: str, report_format: str, version_number: int) -> str:
+        base_id = f"report_{analysis_id}_{report_format}"
+        if version_number == 1:
+            return base_id
+        return f"{base_id}_v{version_number}"
 
     @staticmethod
     def _report_format_metadata(report_format: str) -> tuple[str, str, str]:

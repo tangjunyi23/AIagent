@@ -223,6 +223,36 @@ class AuditApiHandlerRouteTests(unittest.TestCase):
         _, _, events = self.get_text("/api/analyses/analysis_1/events")
         self.assertIn("event: artifact.created\n", events)
 
+    def test_post_reports_generates_versioned_report_artifacts(self) -> None:
+        self.create_firmware_analysis()
+        self.post_json(
+            "/api/reports",
+            {
+                "analysisId": "analysis_1",
+                "format": "markdown",
+                "includeUnverifiedFindings": True,
+            },
+        )
+
+        status, payload = self.post_json(
+            "/api/reports",
+            {
+                "analysisId": "analysis_1",
+                "format": "markdown",
+                "includeUnverifiedFindings": False,
+            },
+        )
+
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["id"], "report_analysis_1_markdown_v2")
+        self.assertEqual(payload["metadata"]["versionNumber"], 2)
+        self.assertEqual(
+            payload["metadata"]["previousReportId"],
+            "report_analysis_1_markdown",
+        )
+        _, first = self.get_json("/api/reports/report_analysis_1_markdown")
+        self.assertFalse(first["metadata"]["latest"])
+
     def test_get_report_detail_dispatches_to_service(self) -> None:
         self.create_firmware_analysis()
         self.post_json(

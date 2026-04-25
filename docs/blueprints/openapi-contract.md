@@ -410,6 +410,8 @@ GET /api/reports/{reportId}/content
 
 P11 mock status: `POST /api/reports` and `GET /api/reports/{reportId}` are implemented as in-memory report artifacts. Supported mock formats are `markdown`, `html`, and `pdf`; the response is an `ArtifactRef` with `type` set to `report.markdown`, `report.html`, or `report.pdf`. The mock emits `artifact.created` and updates `GET /api/analyses/{analysisId}/state`.
 
+P13 mock status: repeated `POST /api/reports` calls for the same `analysisId` and `format` create versioned report artifacts instead of overwriting older artifacts. The first report keeps the compatibility ID `report_{analysisId}_{format}`; later reports use `report_{analysisId}_{format}_v{versionNumber}`. Report artifact metadata includes `versionNumber`, `previousReportId`, `latest`, and `supersededByReportId`.
+
 P12 mock status: `GET /api/reports/{reportId}/content` returns a redacted mock content envelope for report artifacts only and records an `AuditLog` entry with action `report.content.read`. It does not read object storage, return original samples, expose PCAPs, expose decompiler projects, stream bulk tool output, call Agent Server, or expose MCP.
 
 `GET /api/reports/{reportId}/content` response:
@@ -421,7 +423,7 @@ P12 mock status: `GET /api/reports/{reportId}/content` returns a redacted mock c
   "analysisId": "analysis_123",
   "projectId": "project_123",
   "mediaType": "text/markdown",
-  "filename": "analysis_123-audit-report.md",
+  "filename": "analysis_123-audit-report-v1.md",
   "encoding": "utf-8",
   "redacted": true,
   "auditLogId": "audit_1",
